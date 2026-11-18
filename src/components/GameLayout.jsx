@@ -1,20 +1,34 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { RotateCcw } from 'lucide-react'
+import { ArrowUpDown, RotateCcw } from 'lucide-react'
 import Logo from './ui/Logo'
 import PillButton from './ui/PillButton'
 import PlayerPanel from './PlayerPanel'
-import BoardPlaceholder from './BoardPlaceholder'
+import ChessBoard from './ChessBoard'
 import GameSidebar from './GameSidebar'
 import MatchPanel from './MatchPanel'
 import { DIFFICULTY_LABELS, TIME_LABELS, ease } from '../lib/motion'
 
 /**
- * Static in-game layout. All values are display-only placeholders.
+ * In-game layout featuring the playable ChessBoard component with
+ * drag-and-drop, click-to-move, and legal move hints.
  */
-export default function GameLayout({ settings, onExit, onNewGame }) {
-  const userIsWhite = settings.side === 'white'
+export default function GameLayout({
+  settings,
+  initialOrientation = 'white',
+  onExit,
+  onNewGame,
+}) {
+  const [boardOrientation, setBoardOrientation] = useState(initialOrientation)
+  const [turn, setTurn] = useState('w')
+
+  const whiteAtBottom = boardOrientation === 'white'
   const clock = TIME_LABELS[settings.time]
   const difficulty = DIFFICULTY_LABELS[settings.difficulty]
+
+  const toggleOrientation = () => {
+    setBoardOrientation((prev) => (prev === 'white' ? 'black' : 'white'))
+  }
 
   return (
     <div className="grain relative min-h-screen overflow-hidden bg-cream">
@@ -38,6 +52,16 @@ export default function GameLayout({ settings, onExit, onNewGame }) {
           <span className="px-4 py-2 text-ink/70">
             {settings.time === 'unlimited' ? 'No clock' : `${settings.time} min`}
           </span>
+          <span className="h-4 w-px bg-ink/15" />
+          <button
+            type="button"
+            onClick={toggleOrientation}
+            className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-ink/75 transition-colors hover:bg-white/60 hover:text-ink"
+            title="Flip board orientation"
+          >
+            <ArrowUpDown size={13} strokeWidth={1.5} />
+            <span className="capitalize">{boardOrientation}</span>
+          </button>
         </div>
 
         <PillButton size="sm" icon={RotateCcw} onClick={onNewGame}>
@@ -55,8 +79,8 @@ export default function GameLayout({ settings, onExit, onNewGame }) {
             subtitle={`Level · ${difficulty}`}
             time={clock}
             isAI
-            isActive={!userIsWhite}
-            pieceColor={userIsWhite ? 'black' : 'white'}
+            isActive={whiteAtBottom ? turn === 'b' : turn === 'w'}
+            pieceColor={whiteAtBottom ? 'black' : 'white'}
             position="top"
             delay={0.2}
           />
@@ -66,15 +90,18 @@ export default function GameLayout({ settings, onExit, onNewGame }) {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.9, ease, delay: 0.1 }}
           >
-            <BoardPlaceholder flipped={!userIsWhite} delay={0.2} />
+            <ChessBoard
+              boardOrientation={boardOrientation}
+              onGameChange={({ turn: nextTurn }) => setTurn(nextTurn)}
+            />
           </motion.div>
 
           <PlayerPanel
             name="Player"
             subtitle="Rating · 1500"
             time={clock}
-            isActive={userIsWhite}
-            pieceColor={userIsWhite ? 'white' : 'black'}
+            isActive={whiteAtBottom ? turn === 'w' : turn === 'b'}
+            pieceColor={whiteAtBottom ? 'white' : 'black'}
             position="bottom"
             delay={0.3}
           />
