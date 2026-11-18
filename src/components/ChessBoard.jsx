@@ -1,30 +1,41 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
+import { HTML5Backend } from 'react-dnd-html5-backend'
+import { CUSTOM_PIECES } from './chessPieces'
 
 const LIGHT_SQUARE_STYLE = { backgroundColor: '#EFE5D3' }
 const DARK_SQUARE_STYLE = { backgroundColor: '#B38E6A' }
 
 const BOARD_STYLE = {
   borderRadius: '1.4rem',
-  overflow: 'hidden',
   boxShadow: 'inset 0 0 0 1px rgba(255, 255, 255, 0.35)',
 }
 
+const NOTATION_STYLE = {
+  fontFamily: '"Plus Jakarta Sans", Inter, sans-serif',
+  fontWeight: 600,
+  fontSize: '11px',
+}
+
+const DROP_SQUARE_STYLE = {
+  boxShadow: 'inset 0 0 0 3px rgba(26, 26, 26, 0.35)',
+}
+
 const SELECTED_SQUARE_STYLE = {
-  backgroundColor: 'rgba(139, 107, 74, 0.42)',
+  backgroundColor: 'rgba(139, 107, 74, 0.45)',
 }
 
 // Small centered circle for empty legal destination squares
 const EMPTY_HINT_STYLE = {
-  background: 'radial-gradient(circle, rgba(26, 26, 26, 0.28) 20%, transparent 22%)',
+  background: 'radial-gradient(circle, rgba(26, 26, 26, 0.3) 21%, transparent 23%)',
   borderRadius: '50%',
 }
 
 // Ring highlight around enemy pieces that can be captured
 const CAPTURE_HINT_STYLE = {
   background:
-    'radial-gradient(circle, transparent 58%, rgba(26, 26, 26, 0.36) 60%, rgba(26, 26, 26, 0.36) 75%, transparent 77%)',
+    'radial-gradient(circle, transparent 58%, rgba(26, 26, 26, 0.42) 60%, rgba(26, 26, 26, 0.42) 76%, transparent 78%)',
   borderRadius: '50%',
 }
 
@@ -34,8 +45,8 @@ const LAST_MOVE_STYLE = {
 
 /**
  * Interactive chessboard powered by chess.js and react-chessboard.
- * Supports drag-and-drop, click-to-move, legal move dots, capture rings,
- * and automatic snap-back on illegal moves.
+ * Features custom minimalist silhouette pieces, drag-and-drop, click-to-move,
+ * legal move dots, capture rings, and automatic snap-back on illegal moves.
  */
 export default function ChessBoard({
   boardOrientation = 'white',
@@ -54,7 +65,7 @@ export default function ChessBoard({
 
   /**
    * Computes legal move hints for a given square using chess.js.
-   * Returns true if the square has a piece belonging to the side to move.
+   * Returns true if the square contains a piece with legal moves or belongs to side to move.
    */
   const showLegalMoveHints = useCallback((square) => {
     const game = gameRef.current
@@ -87,10 +98,14 @@ export default function ChessBoard({
 
   /**
    * Attempts a move on the chess.js instance.
-   * Returns true if legal, or false so react-chessboard snaps the piece back.
+   * Returns true if legal (updating FEN state), or false so react-chessboard snaps back.
    */
   const tryMakeMove = useCallback(
     (sourceSquare, targetSquare) => {
+      if (!sourceSquare || !targetSquare || sourceSquare === targetSquare) {
+        return false
+      }
+
       const game = gameRef.current
       try {
         const move = game.move({
@@ -101,11 +116,12 @@ export default function ChessBoard({
 
         if (!move) return false
 
-        setFen(game.fen())
+        const nextFen = game.fen()
+        setFen(nextFen)
         setLastMove({ from: sourceSquare, to: targetSquare })
         clearHints()
         onGameChange?.({
-          fen: game.fen(),
+          fen: nextFen,
           turn: game.turn(),
           history: game.history({ verbose: true }),
           inCheck: game.inCheck(),
@@ -137,8 +153,7 @@ export default function ChessBoard({
     [tryMakeMove, clearHints],
   )
 
-  const handlePieceDragEnd = useCallback(() => {
-    // Clear hints if a drag ends without completing a move
+  const handlePieceDropOffBoard = useCallback(() => {
     clearHints()
   }, [clearHints])
 
@@ -150,13 +165,13 @@ export default function ChessBoard({
         return
       }
 
-      // If a piece is currently selected, try moving to the clicked square first
+      // If a piece is already selected, attempt to move it to the clicked square
       if (selectedSquare) {
         const moved = tryMakeMove(selectedSquare, square)
         if (moved) return
       }
 
-      // Otherwise select the clicked square if it contains a valid piece to move
+      // Otherwise select the clicked square if it holds a piece of the active turn
       showLegalMoveHints(square)
     },
     [selectedSquare, clearHints, tryMakeMove, showLegalMoveHints],
@@ -175,21 +190,34 @@ export default function ChessBoard({
   }, [lastMove, optionSquares])
 
   return (
-    <div className="glass rounded-[2rem] p-3">
-      <div className="aspect-square w-full">
+    <div className="relative rounded-[2rem] p-3">
+      {/* Glass frame rendered as a sibling layer so backdrop-filter does not offset react-dnd's fixed drag layer */}
+      <div
+        aria-hidden
+        className="glass pointer-events-none absolute inset-0 rounded-[2rem]"
+      />
+      <div className="relative aspect-square w-full">
         <Chessboard
           id="ArbiterChessboard"
           position={fen}
           boardOrientation={boardOrientation}
+          customDndBackend={HTML5Backend}
+          customPieces={CUSTOM_PIECES}
+          arePiecesDraggable={true}
+          autoPromoteToQueen={true}
+          snapToCursor={true}
+          dropOffBoardAction="snapback"
           onPieceDragBegin={handlePieceDragBegin}
           onPieceDrop={handlePieceDrop}
-          onPieceDragEnd={handlePieceDragEnd}
+          onPieceDropOffBoard={handlePieceDropOffBoard}
           onSquareClick={handleSquareClick}
           customBoardStyle={BOARD_STYLE}
           customDarkSquareStyle={DARK_SQUARE_STYLE}
           customLightSquareStyle={LIGHT_SQUARE_STYLE}
+          customDropSquareStyle={DROP_SQUARE_STYLE}
+          customNotationStyle={NOTATION_STYLE}
           customSquareStyles={customSquareStyles}
-          animationDuration={220}
+          animationDuration={200}
         />
       </div>
     </div>

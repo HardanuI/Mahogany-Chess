@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
+import { CUSTOM_PIECES } from './chessPieces'
 
 export const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR'
 
-const GLYPHS = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' }
 const FILES = 'abcdefgh'
 
-// Purely visual: expands the piece-placement part of a FEN string into an 8×8 grid.
+// Expands the piece-placement part of a FEN string into an 8×8 grid.
 function toGrid(fen) {
   return fen
     .split(' ')[0]
@@ -16,20 +16,15 @@ function toGrid(fen) {
     )
 }
 
-const WHITE_PIECE = {
-  color: '#FBF8F1',
-  WebkitTextStroke: '0.025em rgba(74, 52, 32, 0.75)',
-  textShadow: '0 0.05em 0.08em rgba(60, 40, 20, 0.35)',
-}
-
-const BLACK_PIECE = {
-  color: '#1F1B17',
-  textShadow: '0 0.05em 0.08em rgba(30, 20, 10, 0.35)',
+function fenCharToPieceKey(ch) {
+  if (!ch) return null
+  const color = ch === ch.toUpperCase() ? 'w' : 'b'
+  return `${color}${ch.toUpperCase()}`
 }
 
 /**
- * Static, non-interactive chessboard used as a visual placeholder.
- * No move logic, no drag-and-drop.
+ * Static decorative mini-board used for LandingPage previews.
+ * Uses the same custom minimalist silhouette SVGs as the playable ChessBoard.
  */
 export default function BoardPlaceholder({
   fen = START_FEN,
@@ -58,6 +53,8 @@ export default function BoardPlaceholder({
             const rank = flipped ? r + 1 : 8 - r
             const file = flipped ? FILES[7 - c] : FILES[c]
             const wave = (r + c) * 0.025
+            const pieceKey = fenCharToPieceKey(piece)
+            const renderPiece = pieceKey ? CUSTOM_PIECES[pieceKey] : null
 
             return (
               <motion.div
@@ -90,20 +87,10 @@ export default function BoardPlaceholder({
                   </span>
                 )}
 
-                {showPieces && piece && (
-                  <motion.span
-                    initial={animated ? { opacity: 0, y: -8 } : false}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1], delay: delay + 0.45 + wave }}
-                    className="piece-glyph"
-                    style={{
-                      fontSize: '8.6cqw',
-                      ...(piece === piece.toUpperCase() ? WHITE_PIECE : BLACK_PIECE),
-                    }}
-                  >
-                    {GLYPHS[piece.toLowerCase()]}
-                    {'\uFE0E'}
-                  </motion.span>
+                {showPieces && renderPiece && (
+                  <div className="flex h-full w-full items-center justify-center">
+                    {renderPiece({ squareWidth: '100%', isDragging: false })}
+                  </div>
                 )}
               </motion.div>
             )

@@ -3,11 +3,20 @@ import { BookOpen, Handshake, ScrollText } from 'lucide-react'
 import { DIFFICULTY_LABELS, ease } from '../lib/motion'
 
 /**
- * Right-hand glass panel: match details, an empty move list and a static
- * evaluation bar. Placeholder content only.
+ * Right-hand glass panel: match details, move list, and evaluation bar.
  */
-export default function MatchPanel({ settings }) {
+export default function MatchPanel({ settings, history = [] }) {
   const timeLabel = settings.time === 'unlimited' ? 'Unlimited' : `${settings.time} min`
+
+  // Pair up white & black plies into full move rows
+  const moveRows = []
+  for (let i = 0; i < history.length; i += 2) {
+    moveRows.push({
+      number: i / 2 + 1,
+      white: history[i]?.san ?? '',
+      black: history[i + 1]?.san ?? '',
+    })
+  }
 
   return (
     <motion.aside
@@ -43,34 +52,57 @@ export default function MatchPanel({ settings }) {
       {/* Opening */}
       <div className="mt-3 flex items-center gap-3 rounded-full bg-white/40 px-4 py-2.5">
         <BookOpen size={14} strokeWidth={1.5} className="text-umber" />
-        <span className="text-xs text-ink/60">Opening</span>
-        <span className="ml-auto text-xs italic text-ink/40">Awaiting first move</span>
+        <span className="text-xs text-ink/60">Status</span>
+        <span className="ml-auto text-xs italic text-ink/50">
+          {history.length === 0 ? 'Awaiting first move' : `${history.length} ply played`}
+        </span>
       </div>
 
-      {/* Move list placeholder */}
+      {/* Move list */}
       <div className="mt-5 flex min-h-0 flex-1 flex-col">
         <div className="grid grid-cols-[2rem_1fr_1fr] px-3 pb-2 text-[10px] uppercase tracking-[0.2em] text-ink/40">
           <span>#</span>
           <span>White</span>
           <span>Black</span>
         </div>
-        <div className="flex-1 space-y-1 overflow-hidden">
-          {Array.from({ length: 7 }).map((_, i) => (
-            <div
-              key={i}
-              className={`grid grid-cols-[2rem_1fr_1fr] items-center rounded-full px-3 py-2.5 text-sm ${
-                i % 2 === 0 ? 'bg-white/35' : ''
-              }`}
-              style={{ opacity: 1 - i * 0.12 }}
-            >
-              <span className="text-xs tabular-nums text-ink/35">{i + 1}.</span>
-              <span className="h-1.5 w-10 rounded-full bg-ink/10" />
-              <span className="h-1.5 w-10 rounded-full bg-ink/10" />
-            </div>
-          ))}
-        </div>
+
+        {moveRows.length > 0 ? (
+          <div className="flex-1 space-y-1 overflow-y-auto pr-1">
+            {moveRows.map((row, i) => (
+              <div
+                key={row.number}
+                className={`grid grid-cols-[2rem_1fr_1fr] items-center rounded-full px-3 py-2 text-xs font-medium ${
+                  i % 2 === 0 ? 'bg-white/45' : ''
+                }`}
+              >
+                <span className="tabular-nums text-ink/40">{row.number}.</span>
+                <span className="text-ink">{row.white}</span>
+                <span className="text-ink/75">{row.black}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex-1 space-y-1 overflow-hidden">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div
+                key={i}
+                className={`grid grid-cols-[2rem_1fr_1fr] items-center rounded-full px-3 py-2.5 text-sm ${
+                  i % 2 === 0 ? 'bg-white/35' : ''
+                }`}
+                style={{ opacity: 1 - i * 0.12 }}
+              >
+                <span className="text-xs tabular-nums text-ink/35">{i + 1}.</span>
+                <span className="h-1.5 w-10 rounded-full bg-ink/10" />
+                <span className="h-1.5 w-10 rounded-full bg-ink/10" />
+              </div>
+            ))}
+          </div>
+        )}
+
         <p className="pt-3 text-center font-serif text-sm italic text-ink/45">
-          Every move will be recorded here.
+          {moveRows.length === 0
+            ? 'Every move will be recorded here.'
+            : 'Drag or click any piece to move.'}
         </p>
       </div>
 

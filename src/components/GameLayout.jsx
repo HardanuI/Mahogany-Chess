@@ -11,7 +11,7 @@ import { DIFFICULTY_LABELS, TIME_LABELS, ease } from '../lib/motion'
 
 /**
  * In-game layout featuring the playable ChessBoard component with
- * drag-and-drop, click-to-move, and legal move hints.
+ * drag-and-drop, click-to-move, legal move hints, and custom minimalist pieces.
  */
 export default function GameLayout({
   settings,
@@ -21,6 +21,7 @@ export default function GameLayout({
 }) {
   const [boardOrientation, setBoardOrientation] = useState(initialOrientation)
   const [turn, setTurn] = useState('w')
+  const [history, setHistory] = useState([])
 
   const whiteAtBottom = boardOrientation === 'white'
   const clock = TIME_LABELS[settings.time]
@@ -85,14 +86,18 @@ export default function GameLayout({
             delay={0.2}
           />
 
+          {/* Opacity-only animation prevents CSS transform from offsetting react-dnd's fixed drag preview */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.9, ease, delay: 0.1 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.7, ease, delay: 0.1 }}
           >
             <ChessBoard
               boardOrientation={boardOrientation}
-              onGameChange={({ turn: nextTurn }) => setTurn(nextTurn)}
+              onGameChange={({ turn: nextTurn, history: nextHistory }) => {
+                setTurn(nextTurn)
+                setHistory(nextHistory)
+              }}
             />
           </motion.div>
 
@@ -107,7 +112,7 @@ export default function GameLayout({
           />
         </div>
 
-        <MatchPanel settings={settings} />
+        <MatchPanel settings={settings} history={history} />
       </main>
     </div>
   )
