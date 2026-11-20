@@ -29,6 +29,7 @@ function PieceWrapper({ squareWidth, isDragging, children }) {
         justifyContent: 'center',
         userSelect: 'none',
         WebkitUserSelect: 'none',
+        cursor: isDragging ? 'grabbing' : 'grab',
         transform: isDragging ? 'scale(1.08)' : 'scale(1)',
         transition: 'transform 120ms cubic-bezier(0.22, 1, 0.36, 1)',
       }}
@@ -40,6 +41,7 @@ function PieceWrapper({ squareWidth, isDragging, children }) {
           height: '82%',
           display: 'block',
           overflow: 'visible',
+          pointerEvents: 'none',
           filter: isDragging
             ? 'drop-shadow(0 12px 16px rgba(26, 26, 26, 0.35))'
             : 'drop-shadow(0 2px 3px rgba(26, 26, 26, 0.18))',

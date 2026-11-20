@@ -22,6 +22,7 @@ export default function GameLayout({
   const [boardOrientation, setBoardOrientation] = useState(initialOrientation)
   const [turn, setTurn] = useState('w')
   const [history, setHistory] = useState([])
+  const [inCheck, setInCheck] = useState(false)
 
   const whiteAtBottom = boardOrientation === 'white'
   const clock = TIME_LABELS[settings.time]
@@ -47,7 +48,15 @@ export default function GameLayout({
         </button>
 
         <div className="glass flex items-center gap-1 rounded-full p-1.5 text-xs">
-          <span className="rounded-full bg-ink px-4 py-2 text-cream">Live Match</span>
+          <span className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-cream">
+            <span
+              className={`h-2 w-2 rounded-full border ${
+                turn === 'w' ? 'border-cream bg-cream' : 'border-cream/60 bg-ink'
+              }`}
+            />
+            {turn === 'w' ? 'White to move' : 'Black to move'}
+            {inCheck ? ' · Check' : ''}
+          </span>
           <span className="px-4 py-2 text-ink/70">{difficulty} AI</span>
           <span className="h-4 w-px bg-ink/15" />
           <span className="px-4 py-2 text-ink/70">
@@ -94,9 +103,10 @@ export default function GameLayout({
           >
             <ChessBoard
               boardOrientation={boardOrientation}
-              onGameChange={({ turn: nextTurn, history: nextHistory }) => {
+              onGameChange={({ turn: nextTurn, history: nextHistory, inCheck: nextCheck }) => {
                 setTurn(nextTurn)
                 setHistory(nextHistory)
+                setInCheck(nextCheck)
               }}
             />
           </motion.div>
