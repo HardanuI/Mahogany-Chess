@@ -73,6 +73,17 @@ export default function App() {
     setScreen('game')
   }
 
+  const playAgain = useCallback(() => {
+    setMatchId((id) => id + 1)
+    setSetupOpen(false)
+    setScreen('game')
+  }, [])
+
+  const returnToMainMenu = useCallback(() => {
+    setScreen('landing')
+    setSetupOpen(true)
+  }, [])
+
   return (
     <>
       <AnimatePresence mode="wait">
@@ -87,6 +98,8 @@ export default function App() {
               isPaused={isSetupOpen}
               onExit={() => setScreen('landing')}
               onNewGame={openSetup}
+              onPlayAgain={playAgain}
+              onMainMenu={returnToMainMenu}
             />
           </motion.div>
         )}

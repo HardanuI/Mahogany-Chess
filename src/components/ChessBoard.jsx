@@ -4,6 +4,7 @@ import { Chessboard } from 'react-chessboard'
 import { TouchBackend, TouchBackendImpl } from 'react-dnd-touch-backend'
 import { CUSTOM_PIECES } from './chessPieces'
 import useStockfish from '../hooks/useStockfish'
+import { evaluateGameOver } from '../lib/gameOver'
 import { parseUciMove } from '../services/stockfishService'
 
 // Reset any stale react-dnd singleton stored on window across HMR or remounts
@@ -90,22 +91,6 @@ function findKingSquare(game, color) {
     .flat()
     .find((cell) => cell && cell.type === 'k' && cell.color === color)
   return match?.square ?? null
-}
-
-function getGameStatus(game) {
-  if (game.isCheckmate()) {
-    return {
-      isGameOver: true,
-      outcome: game.turn() === 'w' ? 'Checkmate · Black wins' : 'Checkmate · White wins',
-    }
-  }
-  if (game.isStalemate()) {
-    return { isGameOver: true, outcome: 'Stalemate · Draw' }
-  }
-  if (game.isDraw()) {
-    return { isGameOver: true, outcome: 'Draw' }
-  }
-  return { isGameOver: false, outcome: null }
 }
 
 /**
@@ -238,7 +223,7 @@ export default function ChessBoard({
         if (!move) return null
 
         const nextFen = game.fen()
-        const status = getGameStatus(game)
+        const status = evaluateGameOver(game, playerColorRef.current)
         const isInCheck = game.inCheck()
         const checkedSide = isInCheck ? game.turn() : null
         const kingSquare = checkedSide ? findKingSquare(game, checkedSide) : null
@@ -257,6 +242,8 @@ export default function ChessBoard({
           checkedSide,
           checkedKingSquare: kingSquare,
           isGameOver: status.isGameOver,
+          result: status.result,
+          reason: status.reason,
           outcome: status.outcome,
         })
         return move

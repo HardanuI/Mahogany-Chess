@@ -7,7 +7,9 @@ import PlayerPanel from './PlayerPanel'
 import ChessBoard from './ChessBoard'
 import GameSidebar from './GameSidebar'
 import MatchPanel from './MatchPanel'
+import GameOverModal from './GameOverModal'
 import useChessClock, { parseTimeControlSeconds } from '../hooks/useChessClock'
+import { createTimeoutGameOver } from '../lib/gameOver'
 import { DIFFICULTY_LABELS, ease } from '../lib/motion'
 
 /**
@@ -19,6 +21,8 @@ export default function GameLayout({
   isPaused = false,
   onExit,
   onNewGame,
+  onPlayAgain,
+  onMainMenu,
 }) {
   const playerSide = settings.side === 'black' ? 'black' : 'white'
   const playerColor = playerSide === 'white' ? 'w' : 'b'
@@ -30,7 +34,13 @@ export default function GameLayout({
   const [history, setHistory] = useState([])
   const [checkedSide, setCheckedSide] = useState(null)
   const [isThinking, setIsThinking] = useState(false)
-  const [gameStatus, setGameStatus] = useState({ isGameOver: false, outcome: null })
+  const [gameStatus, setGameStatus] = useState({
+    isGameOver: false,
+    result: null,
+    reason: null,
+    outcome: null,
+  })
+  const [isModalDismissed, setIsModalDismissed] = useState(false)
 
   const initialSeconds = parseTimeControlSeconds(settings.time)
   const difficulty = DIFFICULTY_LABELS[settings.difficulty] ?? DIFFICULTY_LABELS.easy
@@ -39,15 +49,7 @@ export default function GameLayout({
     (loserColor) => {
       setIsThinking(false)
       setGameStatus((prev) =>
-        prev.isGameOver
-          ? prev
-          : {
-              isGameOver: true,
-              outcome:
-                loserColor === playerColor
-                  ? 'Time out · Stockfish wins'
-                  : 'Time out · Player wins',
-            },
+        prev.isGameOver ? prev : createTimeoutGameOver(loserColor, playerColor),
       )
     },
     [playerColor],
@@ -143,9 +145,20 @@ export default function GameLayout({
           </button>
         </div>
 
-        <PillButton size="sm" icon={RotateCcw} onClick={onNewGame}>
-          New Game
-        </PillButton>
+        <div className="flex items-center gap-3">
+          {gameStatus.isGameOver && isModalDismissed && (
+            <button
+              type="button"
+              onClick={() => setIsModalDismissed(false)}
+              className="glass rounded-full px-4 py-2.5 text-xs font-medium text-ink transition-colors hover:bg-white/75"
+            >
+              View Result
+            </button>
+          )}
+          <PillButton size="sm" icon={RotateCcw} onClick={onNewGame}>
+            New Game
+          </PillButton>
+        </div>
       </motion.header>
 
       {/* Main stage */}
@@ -186,13 +199,22 @@ export default function GameLayout({
                 history: nextHistory,
                 checkedSide: nextCheckedSide,
                 isGameOver: nextGameOver,
+                result: nextResult,
+                reason: nextReason,
                 outcome: nextOutcome,
               }) => {
                 setActiveTurn(nextTurn)
                 setHistory(nextHistory)
                 setCheckedSide(nextCheckedSide)
                 setGameStatus((prev) =>
-                  prev.isGameOver ? prev : { isGameOver: nextGameOver, outcome: nextOutcome },
+                  prev.isGameOver
+                    ? prev
+                    : {
+                        isGameOver: nextGameOver,
+                        result: nextResult ?? null,
+                        reason: nextReason ?? null,
+                        outcome: nextOutcome ?? null,
+                      },
                 )
               }}
             />
@@ -221,6 +243,18 @@ export default function GameLayout({
           gameStatus={gameStatus}
         />
       </main>
+
+      <GameOverModal
+        open={gameStatus.isGameOver && !isModalDismissed && !isPaused}
+        result={gameStatus.result}
+        reason={gameStatus.reason}
+        movesCount={Math.ceil(history.length / 2)}
+        difficulty={difficulty}
+        playerSide={playerSide}
+        onPlayAgain={onPlayAgain ?? onNewGame}
+        onMainMenu={onMainMenu ?? onExit}
+        onClose={() => setIsModalDismissed(true)}
+      />
     </div>
   )
 }
