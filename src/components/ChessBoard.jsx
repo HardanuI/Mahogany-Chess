@@ -77,6 +77,21 @@ const LAST_MOVE_STYLE = {
   backgroundColor: 'rgba(139, 107, 74, 0.34)',
 }
 
+// Red/orange radial glow and border on a checked King's square
+const CHECK_SQUARE_STYLE = {
+  background:
+    'radial-gradient(circle, rgba(220, 38, 38, 0.72) 0%, rgba(234, 88, 12, 0.42) 62%, rgba(220, 38, 38, 0.12) 100%)',
+  boxShadow: 'inset 0 0 0 3px rgba(220, 38, 38, 0.85), inset 0 0 16px rgba(220, 38, 38, 0.45)',
+}
+
+function findKingSquare(game, color) {
+  const match = game
+    .board()
+    .flat()
+    .find((cell) => cell && cell.type === 'k' && cell.color === color)
+  return match?.square ?? null
+}
+
 function getGameStatus(game) {
   if (game.isCheckmate()) {
     return {
@@ -95,16 +110,20 @@ function getGameStatus(game) {
 
 /**
  * Interactive chessboard powered by chess.js, react-chessboard, and Stockfish AI.
- * The user plays White; after each valid White move, Stockfish calculates and plays Black.
+ * Supports playing as either White or Black; when playing Black, Stockfish opens automatically.
  */
 export default function ChessBoard({
   boardOrientation = 'white',
+  playerColor = 'w',
   difficulty = 'easy',
   skillLevel,
+  isPaused = false,
   externalGameOver = false,
   onGameChange,
   onThinkingChange,
 }) {
+  const aiColor = playerColor === 'w' ? 'b' : 'w'
+
   const gameRef = useRef(new Chess())
   const containerRef = useRef(null)
   const selectedSquareRef = useRef(null)
@@ -112,14 +131,21 @@ export default function ChessBoard({
   const lastClickTimeRef = useRef(0)
   const lastDropTimeRef = useRef(0)
 
+  const playerColorRef = useRef(playerColor)
+  const aiColorRef = useRef(aiColor)
   const isThinkingRef = useRef(false)
+  const isPausedRef = useRef(isPaused)
   const externalGameOverRef = useRef(externalGameOver)
+  const openingMoveTriggeredRef = useRef(false)
   const aiRequestIdRef = useRef(0)
   const aiTimerRef = useRef(null)
   const isMountedRef = useRef(true)
   const onGameChangeRef = useRef(onGameChange)
   const onThinkingChangeRef = useRef(onThinkingChange)
 
+  playerColorRef.current = playerColor
+  aiColorRef.current = aiColor
+  isPausedRef.current = isPaused
   externalGameOverRef.current = externalGameOver
   onGameChangeRef.current = onGameChange
   onThinkingChangeRef.current = onThinkingChange
@@ -133,6 +159,7 @@ export default function ChessBoard({
   const [lastMove, setLastMove] = useState(null)
   const [isThinking, setIsThinking] = useState(false)
   const [isGameOver, setIsGameOver] = useState(false)
+  const [checkedKingSquare, setCheckedKingSquare] = useState(null)
 
   const effectiveGameOver = isGameOver || externalGameOver
 
@@ -193,9 +220,10 @@ export default function ChessBoard({
   const canUserInteract = useCallback(() => {
     return (
       !isThinkingRef.current &&
+      !isPausedRef.current &&
       !externalGameOverRef.current &&
       !gameRef.current.isGameOver() &&
-      gameRef.current.turn() === 'w'
+      gameRef.current.turn() === playerColorRef.current
     )
   }, [])
 
@@ -211,17 +239,23 @@ export default function ChessBoard({
 
         const nextFen = game.fen()
         const status = getGameStatus(game)
+        const isInCheck = game.inCheck()
+        const checkedSide = isInCheck ? game.turn() : null
+        const kingSquare = checkedSide ? findKingSquare(game, checkedSide) : null
 
         setFen(nextFen)
         setLastMove({ from: move.from, to: move.to })
         setIsGameOver(status.isGameOver)
+        setCheckedKingSquare(kingSquare)
         clearHints()
 
         onGameChangeRef.current?.({
           fen: nextFen,
           turn: game.turn(),
           history: game.history({ verbose: true }),
-          inCheck: game.inCheck(),
+          inCheck: isInCheck,
+          checkedSide,
+          checkedKingSquare: kingSquare,
           isGameOver: status.isGameOver,
           outcome: status.outcome,
         })
@@ -234,15 +268,15 @@ export default function ChessBoard({
   )
 
   /**
-   * Requests Stockfish to calculate Black's best move and applies it after a 1.2s-2.0s delay
-   * so Black's clock visibly ticks down while thinking.
+   * Requests Stockfish to calculate the AI's best move and applies it after a 1.2s-2.0s delay
+   * so the AI's clock visibly ticks down while thinking.
    */
   const triggerAiMove = useCallback(
-    (fenAfterUserMove) => {
+    (fenAfterMove) => {
       if (
         externalGameOverRef.current ||
         gameRef.current.isGameOver() ||
-        gameRef.current.turn() !== 'b'
+        gameRef.current.turn() !== aiColorRef.current
       ) {
         return
       }
@@ -258,7 +292,7 @@ export default function ChessBoard({
 
       const startedAt = performance.now()
 
-      getBestMove(fenAfterUserMove)
+      getBestMove(fenAfterMove)
         .then((bestMoveUci) => {
           if (
             !isMountedRef.current ||
@@ -283,7 +317,7 @@ export default function ChessBoard({
             }
 
             const game = gameRef.current
-            if (game.isGameOver() || game.turn() !== 'b') {
+            if (game.isGameOver() || game.turn() !== aiColorRef.current) {
               setThinkingState(false)
               return
             }
@@ -311,6 +345,22 @@ export default function ChessBoard({
     },
     [applyMove, clearHints, getBestMove, setThinkingState],
   )
+
+  // Automatically play Stockfish's opening move when the user chooses Black
+  useEffect(() => {
+    if (
+      openingMoveTriggeredRef.current ||
+      isPaused ||
+      externalGameOver ||
+      gameRef.current.history().length > 0 ||
+      gameRef.current.isGameOver() ||
+      gameRef.current.turn() !== aiColor
+    ) {
+      return
+    }
+    openingMoveTriggeredRef.current = true
+    triggerAiMove(gameRef.current.fen())
+  }, [aiColor, externalGameOver, isPaused, triggerAiMove])
 
   /**
    * Computes legal move hints for a given square using chess.js.
@@ -355,7 +405,7 @@ export default function ChessBoard({
 
   /**
    * Attempts a user move on the chess.js instance.
-   * Triggers Stockfish AI if the game continues and it becomes Black's turn.
+   * Triggers Stockfish AI if the game continues and it becomes the AI's turn.
    */
   const tryMakeMove = useCallback(
     (sourceSquare, targetSquare) => {
@@ -373,7 +423,11 @@ export default function ChessBoard({
       if (!move) return false
 
       const game = gameRef.current
-      if (!externalGameOverRef.current && !game.isGameOver() && game.turn() === 'b') {
+      if (
+        !externalGameOverRef.current &&
+        !game.isGameOver() &&
+        game.turn() === aiColorRef.current
+      ) {
         triggerAiMove(game.fen())
       }
       return true
@@ -513,11 +567,15 @@ export default function ChessBoard({
       styles[lastMove.from] = LAST_MOVE_STYLE
       styles[lastMove.to] = LAST_MOVE_STYLE
     }
-    return {
+    const merged = {
       ...styles,
       ...optionSquares,
     }
-  }, [lastMove, optionSquares])
+    if (checkedKingSquare) {
+      merged[checkedKingSquare] = CHECK_SQUARE_STYLE
+    }
+    return merged
+  }, [lastMove, optionSquares, checkedKingSquare])
 
   return (
     <div className="relative rounded-[2rem] p-3">
@@ -539,13 +597,14 @@ export default function ChessBoard({
           boardOrientation={boardOrientation}
           customDndBackend={UniversalDndBackend}
           customPieces={CUSTOM_PIECES}
-          arePiecesDraggable={!isThinking && !effectiveGameOver}
+          arePiecesDraggable={!isThinking && !effectiveGameOver && !isPaused}
           isDraggablePiece={({ piece }) =>
             !isThinkingRef.current &&
+            !isPausedRef.current &&
             !externalGameOverRef.current &&
             !gameRef.current.isGameOver() &&
-            gameRef.current.turn() === 'w' &&
-            piece[0] === 'w'
+            gameRef.current.turn() === playerColorRef.current &&
+            piece[0] === playerColorRef.current
           }
           autoPromoteToQueen={true}
           snapToCursor={true}

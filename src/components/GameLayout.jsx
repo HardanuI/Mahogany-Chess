@@ -11,36 +11,47 @@ import useChessClock, { parseTimeControlSeconds } from '../hooks/useChessClock'
 import { DIFFICULTY_LABELS, ease } from '../lib/motion'
 
 /**
- * In-game layout featuring the playable ChessBoard component with
- * turn-based chess clocks, Stockfish AI, and glassmorphism panels.
+ * In-game layout connecting SetupModal settings (difficulty, time control, player color)
+ * to Stockfish AI, turn-based chess clocks, check notifications, and board orientation.
  */
 export default function GameLayout({
   settings,
-  initialOrientation = 'white',
+  isPaused = false,
   onExit,
   onNewGame,
 }) {
-  const [boardOrientation, setBoardOrientation] = useState(initialOrientation)
+  const playerSide = settings.side === 'black' ? 'black' : 'white'
+  const playerColor = playerSide === 'white' ? 'w' : 'b'
+  const aiColor = playerColor === 'w' ? 'b' : 'w'
+  const aiSide = aiColor === 'w' ? 'white' : 'black'
+
+  const [boardOrientation, setBoardOrientation] = useState(playerSide)
   const [activeTurn, setActiveTurn] = useState('w')
   const [history, setHistory] = useState([])
-  const [inCheck, setInCheck] = useState(false)
+  const [checkedSide, setCheckedSide] = useState(null)
   const [isThinking, setIsThinking] = useState(false)
   const [gameStatus, setGameStatus] = useState({ isGameOver: false, outcome: null })
 
   const initialSeconds = parseTimeControlSeconds(settings.time)
-  const difficulty = DIFFICULTY_LABELS[settings.difficulty]
+  const difficulty = DIFFICULTY_LABELS[settings.difficulty] ?? DIFFICULTY_LABELS.easy
 
-  const handleTimeout = useCallback((loserColor) => {
-    setIsThinking(false)
-    setGameStatus((prev) =>
-      prev.isGameOver
-        ? prev
-        : {
-            isGameOver: true,
-            outcome: loserColor === 'w' ? 'Time out · Stockfish wins' : 'Time out · Player wins',
-          },
-    )
-  }, [])
+  const handleTimeout = useCallback(
+    (loserColor) => {
+      setIsThinking(false)
+      setGameStatus((prev) =>
+        prev.isGameOver
+          ? prev
+          : {
+              isGameOver: true,
+              outcome:
+                loserColor === playerColor
+                  ? 'Time out · Stockfish wins'
+                  : 'Time out · Player wins',
+            },
+      )
+    },
+    [playerColor],
+  )
 
   const {
     formattedWhiteTime,
@@ -48,20 +59,35 @@ export default function GameLayout({
     isWhiteLowTime,
     isBlackLowTime,
     timedOutColor,
+    isUnlimited,
   } = useChessClock({
     initialSeconds,
     activeTurn,
     isGameOver: gameStatus.isGameOver,
+    isPaused,
     onTimeout: handleTimeout,
   })
+
+  const playerTime = playerColor === 'w' ? formattedWhiteTime : formattedBlackTime
+  const aiTime = aiColor === 'w' ? formattedWhiteTime : formattedBlackTime
+  const isPlayerLowTime = playerColor === 'w' ? isWhiteLowTime : isBlackLowTime
+  const isAiLowTime = aiColor === 'w' ? isWhiteLowTime : isBlackLowTime
+  const isPlayerTimedOut = timedOutColor === playerColor
+  const isAiTimedOut = timedOutColor === aiColor
 
   const toggleOrientation = () => {
     setBoardOrientation((prev) => (prev === 'white' ? 'black' : 'white'))
   }
 
-  let turnLabel = `${activeTurn === 'w' ? 'White to move' : 'Black to move'}${inCheck ? ' · Check' : ''}`
+  const isInCheck = !gameStatus.isGameOver && (checkedSide === 'w' || checkedSide === 'b')
+
+  let turnLabel = activeTurn === 'w' ? 'White to move' : 'Black to move'
   if (gameStatus.isGameOver && gameStatus.outcome) {
     turnLabel = gameStatus.outcome
+  } else if (checkedSide === playerColor) {
+    turnLabel = 'You are in check!'
+  } else if (checkedSide === aiColor) {
+    turnLabel = 'Stockfish is in check!'
   } else if (isThinking) {
     turnLabel = 'Stockfish thinking…'
   }
@@ -82,8 +108,14 @@ export default function GameLayout({
         </button>
 
         <div className="glass flex items-center gap-1 rounded-full p-1.5 text-xs">
-          <span className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-cream">
-            {isThinking && !gameStatus.isGameOver ? (
+          <span
+            className={`flex items-center gap-2 rounded-full bg-ink px-4 py-2 transition-colors ${
+              isInCheck ? 'font-semibold text-red-300 ring-1 ring-red-500/60' : 'text-cream'
+            }`}
+          >
+            {isInCheck ? (
+              <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+            ) : isThinking && !gameStatus.isGameOver ? (
               <span className="h-2 w-2 animate-pulse rounded-full bg-cream" />
             ) : (
               <span
@@ -97,7 +129,7 @@ export default function GameLayout({
           <span className="px-4 py-2 text-ink/70">{difficulty} AI</span>
           <span className="h-4 w-px bg-ink/15" />
           <span className="px-4 py-2 text-ink/70">
-            {settings.time === 'unlimited' ? 'No clock' : `${settings.time} min`}
+            {isUnlimited ? 'Unlimited' : `${settings.time} min`}
           </span>
           <span className="h-4 w-px bg-ink/15" />
           <button
@@ -124,13 +156,14 @@ export default function GameLayout({
           <PlayerPanel
             name="Stockfish AI"
             subtitle={`Level · ${difficulty}`}
-            time={formattedBlackTime}
+            time={aiTime}
+            hideTimer={isUnlimited}
             isAI
-            isActive={!gameStatus.isGameOver && activeTurn === 'b'}
+            isActive={!gameStatus.isGameOver && activeTurn === aiColor}
             isThinking={isThinking && !gameStatus.isGameOver}
-            isLowTime={isBlackLowTime}
-            isTimedOut={timedOutColor === 'b'}
-            pieceColor="black"
+            isLowTime={isAiLowTime}
+            isTimedOut={isAiTimedOut}
+            pieceColor={aiSide}
             position="top"
             delay={0.2}
           />
@@ -143,19 +176,21 @@ export default function GameLayout({
           >
             <ChessBoard
               boardOrientation={boardOrientation}
+              playerColor={playerColor}
               difficulty={settings.difficulty}
+              isPaused={isPaused}
               externalGameOver={gameStatus.isGameOver}
               onThinkingChange={setIsThinking}
               onGameChange={({
                 turn: nextTurn,
                 history: nextHistory,
-                inCheck: nextCheck,
+                checkedSide: nextCheckedSide,
                 isGameOver: nextGameOver,
                 outcome: nextOutcome,
               }) => {
                 setActiveTurn(nextTurn)
                 setHistory(nextHistory)
-                setInCheck(nextCheck)
+                setCheckedSide(nextCheckedSide)
                 setGameStatus((prev) =>
                   prev.isGameOver ? prev : { isGameOver: nextGameOver, outcome: nextOutcome },
                 )
@@ -166,11 +201,12 @@ export default function GameLayout({
           <PlayerPanel
             name="Player"
             subtitle="Rating · 1500"
-            time={formattedWhiteTime}
-            isActive={!gameStatus.isGameOver && activeTurn === 'w'}
-            isLowTime={isWhiteLowTime}
-            isTimedOut={timedOutColor === 'w'}
-            pieceColor="white"
+            time={playerTime}
+            hideTimer={isUnlimited}
+            isActive={!gameStatus.isGameOver && activeTurn === playerColor}
+            isLowTime={isPlayerLowTime}
+            isTimedOut={isPlayerTimedOut}
+            pieceColor={playerSide}
             position="bottom"
             delay={0.3}
           />
@@ -179,7 +215,9 @@ export default function GameLayout({
         <MatchPanel
           settings={settings}
           history={history}
+          playerColor={playerColor}
           isThinking={isThinking && !gameStatus.isGameOver}
+          checkedSide={checkedSide}
           gameStatus={gameStatus}
         />
       </main>

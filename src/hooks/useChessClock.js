@@ -39,6 +39,7 @@ export default function useChessClock({
   initialSeconds = DEFAULT_TIME_SECONDS,
   activeTurn = 'w',
   isGameOver = false,
+  isPaused = false,
   onTimeout,
 } = {}) {
   const isUnlimited = initialSeconds === null
@@ -70,9 +71,9 @@ export default function useChessClock({
     timeoutFiredRef.current = false
   }, [initialMs])
 
-  // Tick down only the active player's clock while the game is ongoing
+  // Tick down only the active player's clock while the game is ongoing and unpaused
   useEffect(() => {
-    if (isUnlimited || isGameOver || timedOutColor) {
+    if (isUnlimited || isGameOver || isPaused || timedOutColor) {
       return
     }
 
@@ -91,7 +92,7 @@ export default function useChessClock({
     }, 100)
 
     return () => clearInterval(intervalId)
-  }, [activeTurn, isGameOver, isUnlimited, timedOutColor])
+  }, [activeTurn, isGameOver, isPaused, isUnlimited, timedOutColor])
 
   // Notify listener once when either clock reaches 0
   useEffect(() => {

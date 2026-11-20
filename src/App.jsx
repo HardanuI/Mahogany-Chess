@@ -6,6 +6,28 @@ import GameLayout from './components/GameLayout'
 
 const DEFAULT_SETTINGS = { difficulty: 'easy', time: '5', side: 'white' }
 const SCREEN_STORAGE_KEY = 'arbiter_active_screen'
+const SETTINGS_STORAGE_KEY = 'arbiter_game_settings'
+
+const VALID_DIFFICULTIES = new Set(['easy', 'medium', 'hard'])
+const VALID_TIMES = new Set(['unlimited', '5', '10'])
+const VALID_SIDES = new Set(['white', 'black'])
+
+function loadStoredSettings() {
+  try {
+    const raw = sessionStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (!raw) return DEFAULT_SETTINGS
+    const parsed = JSON.parse(raw)
+    return {
+      difficulty: VALID_DIFFICULTIES.has(parsed?.difficulty)
+        ? parsed.difficulty
+        : DEFAULT_SETTINGS.difficulty,
+      time: VALID_TIMES.has(parsed?.time) ? parsed.time : DEFAULT_SETTINGS.time,
+      side: VALID_SIDES.has(parsed?.side) ? parsed.side : DEFAULT_SETTINGS.side,
+    }
+  } catch {
+    return DEFAULT_SETTINGS
+  }
+}
 
 const pageTransition = {
   initial: { opacity: 0 },
@@ -22,7 +44,7 @@ export default function App() {
     }
   })
   const [isSetupOpen, setSetupOpen] = useState(false)
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  const [settings, setSettings] = useState(loadStoredSettings)
   const [matchId, setMatchId] = useState(1)
 
   useEffect(() => {
@@ -32,6 +54,14 @@ export default function App() {
       // ignore storage errors
     }
   }, [screen])
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+    } catch {
+      // ignore storage errors
+    }
+  }, [settings])
 
   const openSetup = useCallback(() => setSetupOpen(true), [])
   const closeSetup = useCallback(() => setSetupOpen(false), [])
@@ -54,6 +84,7 @@ export default function App() {
           <motion.div key={`game-${matchId}`} {...pageTransition}>
             <GameLayout
               settings={settings}
+              isPaused={isSetupOpen}
               onExit={() => setScreen('landing')}
               onNewGame={openSetup}
             />

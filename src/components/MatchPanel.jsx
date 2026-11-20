@@ -1,17 +1,20 @@
 import { motion } from 'framer-motion'
-import { BookOpen, Handshake, ScrollText } from 'lucide-react'
+import { AlertTriangle, BookOpen, Handshake, ScrollText } from 'lucide-react'
 import { DIFFICULTY_LABELS, ease } from '../lib/motion'
 
 /**
- * Right-hand glass panel: match details, move list, and evaluation bar.
+ * Right-hand glass panel: match details, move list, check alerts, and evaluation bar.
  */
 export default function MatchPanel({
   settings,
   history = [],
+  playerColor = 'w',
   isThinking = false,
+  checkedSide = null,
   gameStatus = { isGameOver: false, outcome: null },
 }) {
   const timeLabel = settings.time === 'unlimited' ? 'Unlimited' : `${settings.time} min`
+  const aiColor = playerColor === 'w' ? 'b' : 'w'
 
   // Pair up white & black plies into full move rows
   const moveRows = []
@@ -23,9 +26,15 @@ export default function MatchPanel({
     })
   }
 
+  const isInCheck = !gameStatus.isGameOver && (checkedSide === 'w' || checkedSide === 'b')
+
   let statusText = history.length === 0 ? 'Awaiting first move' : `${history.length} ply played`
   if (gameStatus.isGameOver && gameStatus.outcome) {
     statusText = gameStatus.outcome
+  } else if (checkedSide === playerColor) {
+    statusText = 'You are in check!'
+  } else if (checkedSide === aiColor) {
+    statusText = 'Stockfish is in check!'
   } else if (isThinking) {
     statusText = 'Stockfish thinking…'
   }
@@ -33,6 +42,10 @@ export default function MatchPanel({
   let helperText = 'Every move will be recorded here.'
   if (gameStatus.isGameOver) {
     helperText = gameStatus.outcome ?? 'Match complete.'
+  } else if (checkedSide === playerColor) {
+    helperText = 'Defend your King — only moves escaping check are legal.'
+  } else if (checkedSide === aiColor) {
+    helperText = 'Stockfish must respond to your check…'
   } else if (isThinking) {
     helperText = 'Stockfish is calculating its reply…'
   } else if (moveRows.length > 0) {
@@ -61,7 +74,7 @@ export default function MatchPanel({
         {[
           ['Level', DIFFICULTY_LABELS[settings.difficulty]],
           ['Clock', timeLabel],
-          ['Side', 'White'],
+          ['Side', settings.side === 'black' ? 'Black' : 'White'],
         ].map(([k, v]) => (
           <div key={k} className="rounded-[1.25rem] bg-white/50 px-3 py-2.5">
             <p className="text-[9px] uppercase tracking-[0.2em] text-ink/45">{k}</p>
@@ -71,12 +84,24 @@ export default function MatchPanel({
       </div>
 
       {/* Status */}
-      <div className="mt-3 flex items-center gap-3 rounded-full bg-white/40 px-4 py-2.5">
-        <BookOpen size={14} strokeWidth={1.5} className="text-umber" />
+      <div
+        className={`mt-3 flex items-center gap-3 rounded-full px-4 py-2.5 transition-colors duration-300 ${
+          isInCheck ? 'border border-red-500/30 bg-red-500/15' : 'bg-white/40'
+        }`}
+      >
+        {isInCheck ? (
+          <AlertTriangle size={14} strokeWidth={1.5} className="shrink-0 text-red-600" />
+        ) : (
+          <BookOpen size={14} strokeWidth={1.5} className="shrink-0 text-umber" />
+        )}
         <span className="text-xs text-ink/60">Status</span>
         <span
-          className={`ml-auto text-xs italic ${
-            gameStatus.isGameOver ? 'font-medium text-ink' : 'text-ink/50'
+          className={`ml-auto text-xs ${
+            isInCheck
+              ? 'font-semibold text-red-700'
+              : gameStatus.isGameOver
+                ? 'font-medium italic text-ink'
+                : 'italic text-ink/50'
           }`}
         >
           {statusText}

@@ -14,6 +14,7 @@ export default function PlayerPanel({
   isThinking = false,
   isLowTime = false,
   isTimedOut = false,
+  hideTimer = false,
   pieceColor = 'white',
   position = 'top',
   delay = 0,
@@ -94,29 +95,31 @@ export default function PlayerPanel({
           {statusText}
         </span>
 
-        <div
-          className={`flex items-center gap-2.5 rounded-full px-5 py-3 transition-colors duration-500 ${timerPillClass}`}
-        >
-          {isActive && !isTimedOut ? (
-            <span className="relative flex h-2 w-2">
-              <span
-                className={`absolute inline-flex h-full w-full animate-ping rounded-full ${
-                  isLowTime ? 'bg-red-400' : 'bg-cream/70'
-                }`}
-              />
-              <span
-                className={`relative inline-flex h-2 w-2 rounded-full ${
-                  isLowTime ? 'bg-red-500' : 'bg-cream'
-                }`}
-              />
+        {!hideTimer && (
+          <div
+            className={`flex items-center gap-2.5 rounded-full px-5 py-3 transition-colors duration-500 ${timerPillClass}`}
+          >
+            {isActive && !isTimedOut ? (
+              <span className="relative flex h-2 w-2">
+                <span
+                  className={`absolute inline-flex h-full w-full animate-ping rounded-full ${
+                    isLowTime ? 'bg-red-400' : 'bg-cream/70'
+                  }`}
+                />
+                <span
+                  className={`relative inline-flex h-2 w-2 rounded-full ${
+                    isLowTime ? 'bg-red-500' : 'bg-cream'
+                  }`}
+                />
+              </span>
+            ) : (
+              <Timer size={15} strokeWidth={1.5} />
+            )}
+            <span className="min-w-[3.5rem] text-center text-xl font-medium tabular-nums tracking-tight">
+              {time}
             </span>
-          ) : (
-            <Timer size={15} strokeWidth={1.5} />
-          )}
-          <span className="min-w-[3.5rem] text-center text-xl font-medium tabular-nums tracking-tight">
-            {time}
-          </span>
-        </div>
+          </div>
+        )}
       </div>
     </motion.div>
   )

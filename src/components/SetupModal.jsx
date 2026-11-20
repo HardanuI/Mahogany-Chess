@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Compass, Crown, Feather, InfinityIcon, Timer, X } from 'lucide-react'
 import PillButton from './ui/PillButton'
 import { DIFFICULTY_LABELS, ease } from '../lib/motion'
+import { DIFFICULTY_CONFIG } from '../services/stockfishService'
 
 const DIFFICULTIES = [
   {
@@ -169,7 +170,7 @@ export default function SetupModal({ open, initial, onClose, onStart }) {
                             selected ? 'text-cream/50' : 'text-ink/40'
                           }`}
                         >
-                          Elo {elo}
+                          Skill {DIFFICULTY_CONFIG[id].skillLevel} · Elo {elo}
                         </p>
                       </motion.button>
                     )

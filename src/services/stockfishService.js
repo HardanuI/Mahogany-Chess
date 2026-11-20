@@ -2,8 +2,8 @@ export const DEFAULT_SKILL_LEVEL = 2
 
 export const DIFFICULTY_CONFIG = {
   easy: { skillLevel: 2, depth: 6 },
-  medium: { skillLevel: 6, depth: 9 },
-  hard: { skillLevel: 14, depth: 12 },
+  medium: { skillLevel: 10, depth: 10 },
+  hard: { skillLevel: 20, depth: 12 },
 }
 
 function clampSkillLevel(level) {
