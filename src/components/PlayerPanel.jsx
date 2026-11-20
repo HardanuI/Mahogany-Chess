@@ -11,6 +11,7 @@ export default function PlayerPanel({
   time,
   isAI = false,
   isActive = false,
+  isThinking = false,
   pieceColor = 'white',
   position = 'top',
   delay = 0,
@@ -25,7 +26,7 @@ export default function PlayerPanel({
       }`}
     >
       <div className="flex items-center gap-4">
-        <Avatar isAI={isAI} isActive={isActive} />
+        <Avatar isAI={isAI} isActive={isActive} isThinking={isThinking} />
 
         <div>
           <div className="flex items-center gap-2">
@@ -34,6 +35,16 @@ export default function PlayerPanel({
               <span className="rounded-full bg-olive/15 px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.18em] text-olive-dark">
                 Engine
               </span>
+            )}
+            {isAI && isThinking && (
+              <motion.span
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-1.5 rounded-full bg-umber/15 px-2.5 py-0.5 text-[10px] font-medium text-umber-dark"
+              >
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-umber" />
+                Thinking…
+              </motion.span>
             )}
           </div>
           <p className="mt-1.5 flex items-center gap-2 text-xs text-ink/55">
@@ -48,7 +59,9 @@ export default function PlayerPanel({
       </div>
 
       <div className="flex items-center gap-5">
-        <span className="text-[11px] italic text-ink/35">No captures yet</span>
+        <span className="text-[11px] italic text-ink/35">
+          {isAI && isThinking ? 'Calculating move…' : 'No captures yet'}
+        </span>
 
         <div
           className={`flex items-center gap-2.5 rounded-full px-5 py-3 transition-colors duration-500 ${
@@ -72,15 +85,17 @@ export default function PlayerPanel({
   )
 }
 
-function Avatar({ isAI, isActive }) {
+function Avatar({ isAI, isActive, isThinking }) {
   return (
     <div className="relative">
-      {isActive && (
+      {(isActive || isThinking) && (
         <motion.span
           aria-hidden
-          className="absolute -inset-1 rounded-full border border-umber/50"
-          animate={{ scale: [1, 1.12, 1], opacity: [0.8, 0, 0.8] }}
-          transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+          className={`absolute -inset-1 rounded-full border ${
+            isThinking ? 'border-olive/70' : 'border-umber/50'
+          }`}
+          animate={{ scale: [1, 1.14, 1], opacity: [0.85, 0, 0.85] }}
+          transition={{ duration: isThinking ? 1.4 : 2.4, repeat: Infinity, ease: 'easeInOut' }}
         />
       )}
       {isAI ? (

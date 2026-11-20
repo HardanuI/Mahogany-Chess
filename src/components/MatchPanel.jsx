@@ -5,7 +5,12 @@ import { DIFFICULTY_LABELS, ease } from '../lib/motion'
 /**
  * Right-hand glass panel: match details, move list, and evaluation bar.
  */
-export default function MatchPanel({ settings, history = [] }) {
+export default function MatchPanel({
+  settings,
+  history = [],
+  isThinking = false,
+  gameStatus = { isGameOver: false, outcome: null },
+}) {
   const timeLabel = settings.time === 'unlimited' ? 'Unlimited' : `${settings.time} min`
 
   // Pair up white & black plies into full move rows
@@ -16,6 +21,22 @@ export default function MatchPanel({ settings, history = [] }) {
       white: history[i]?.san ?? '',
       black: history[i + 1]?.san ?? '',
     })
+  }
+
+  let statusText = history.length === 0 ? 'Awaiting first move' : `${history.length} ply played`
+  if (gameStatus.isGameOver && gameStatus.outcome) {
+    statusText = gameStatus.outcome
+  } else if (isThinking) {
+    statusText = 'Stockfish thinking…'
+  }
+
+  let helperText = 'Every move will be recorded here.'
+  if (gameStatus.isGameOver) {
+    helperText = gameStatus.outcome ?? 'Match complete.'
+  } else if (isThinking) {
+    helperText = 'Stockfish is calculating its reply…'
+  } else if (moveRows.length > 0) {
+    helperText = 'Drag or click any piece to move.'
   }
 
   return (
@@ -40,7 +61,7 @@ export default function MatchPanel({ settings, history = [] }) {
         {[
           ['Level', DIFFICULTY_LABELS[settings.difficulty]],
           ['Clock', timeLabel],
-          ['Side', settings.side === 'white' ? 'White' : 'Black'],
+          ['Side', 'White'],
         ].map(([k, v]) => (
           <div key={k} className="rounded-[1.25rem] bg-white/50 px-3 py-2.5">
             <p className="text-[9px] uppercase tracking-[0.2em] text-ink/45">{k}</p>
@@ -49,12 +70,16 @@ export default function MatchPanel({ settings, history = [] }) {
         ))}
       </div>
 
-      {/* Opening */}
+      {/* Status */}
       <div className="mt-3 flex items-center gap-3 rounded-full bg-white/40 px-4 py-2.5">
         <BookOpen size={14} strokeWidth={1.5} className="text-umber" />
         <span className="text-xs text-ink/60">Status</span>
-        <span className="ml-auto text-xs italic text-ink/50">
-          {history.length === 0 ? 'Awaiting first move' : `${history.length} ply played`}
+        <span
+          className={`ml-auto text-xs italic ${
+            gameStatus.isGameOver ? 'font-medium text-ink' : 'text-ink/50'
+          }`}
+        >
+          {statusText}
         </span>
       </div>
 
@@ -99,11 +124,7 @@ export default function MatchPanel({ settings, history = [] }) {
           </div>
         )}
 
-        <p className="pt-3 text-center font-serif text-sm italic text-ink/45">
-          {moveRows.length === 0
-            ? 'Every move will be recorded here.'
-            : 'Drag or click any piece to move.'}
-        </p>
+        <p className="pt-3 text-center font-serif text-sm italic text-ink/45">{helperText}</p>
       </div>
 
       {/* Static evaluation bar */}

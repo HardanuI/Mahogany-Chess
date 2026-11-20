@@ -11,7 +11,7 @@ import { DIFFICULTY_LABELS, TIME_LABELS, ease } from '../lib/motion'
 
 /**
  * In-game layout featuring the playable ChessBoard component with
- * drag-and-drop, click-to-move, legal move hints, and custom minimalist pieces.
+ * drag-and-drop, click-to-move, legal move hints, custom pieces, and Stockfish AI.
  */
 export default function GameLayout({
   settings,
@@ -23,13 +23,21 @@ export default function GameLayout({
   const [turn, setTurn] = useState('w')
   const [history, setHistory] = useState([])
   const [inCheck, setInCheck] = useState(false)
+  const [isThinking, setIsThinking] = useState(false)
+  const [gameStatus, setGameStatus] = useState({ isGameOver: false, outcome: null })
 
-  const whiteAtBottom = boardOrientation === 'white'
   const clock = TIME_LABELS[settings.time]
   const difficulty = DIFFICULTY_LABELS[settings.difficulty]
 
   const toggleOrientation = () => {
     setBoardOrientation((prev) => (prev === 'white' ? 'black' : 'white'))
+  }
+
+  let turnLabel = `${turn === 'w' ? 'White to move' : 'Black to move'}${inCheck ? ' · Check' : ''}`
+  if (gameStatus.isGameOver && gameStatus.outcome) {
+    turnLabel = gameStatus.outcome
+  } else if (isThinking) {
+    turnLabel = 'Stockfish thinking…'
   }
 
   return (
@@ -49,13 +57,16 @@ export default function GameLayout({
 
         <div className="glass flex items-center gap-1 rounded-full p-1.5 text-xs">
           <span className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-cream">
-            <span
-              className={`h-2 w-2 rounded-full border ${
-                turn === 'w' ? 'border-cream bg-cream' : 'border-cream/60 bg-ink'
-              }`}
-            />
-            {turn === 'w' ? 'White to move' : 'Black to move'}
-            {inCheck ? ' · Check' : ''}
+            {isThinking ? (
+              <span className="h-2 w-2 animate-pulse rounded-full bg-cream" />
+            ) : (
+              <span
+                className={`h-2 w-2 rounded-full border ${
+                  turn === 'w' ? 'border-cream bg-cream' : 'border-cream/60 bg-ink'
+                }`}
+              />
+            )}
+            {turnLabel}
           </span>
           <span className="px-4 py-2 text-ink/70">{difficulty} AI</span>
           <span className="h-4 w-px bg-ink/15" />
@@ -89,8 +100,9 @@ export default function GameLayout({
             subtitle={`Level · ${difficulty}`}
             time={clock}
             isAI
-            isActive={whiteAtBottom ? turn === 'b' : turn === 'w'}
-            pieceColor={whiteAtBottom ? 'black' : 'white'}
+            isActive={!gameStatus.isGameOver && turn === 'b'}
+            isThinking={isThinking}
+            pieceColor="black"
             position="top"
             delay={0.2}
           />
@@ -103,10 +115,19 @@ export default function GameLayout({
           >
             <ChessBoard
               boardOrientation={boardOrientation}
-              onGameChange={({ turn: nextTurn, history: nextHistory, inCheck: nextCheck }) => {
+              difficulty={settings.difficulty}
+              onThinkingChange={setIsThinking}
+              onGameChange={({
+                turn: nextTurn,
+                history: nextHistory,
+                inCheck: nextCheck,
+                isGameOver: nextGameOver,
+                outcome: nextOutcome,
+              }) => {
                 setTurn(nextTurn)
                 setHistory(nextHistory)
                 setInCheck(nextCheck)
+                setGameStatus({ isGameOver: nextGameOver, outcome: nextOutcome })
               }}
             />
           </motion.div>
@@ -115,14 +136,14 @@ export default function GameLayout({
             name="Player"
             subtitle="Rating · 1500"
             time={clock}
-            isActive={whiteAtBottom ? turn === 'w' : turn === 'b'}
-            pieceColor={whiteAtBottom ? 'white' : 'black'}
+            isActive={!gameStatus.isGameOver && turn === 'w'}
+            pieceColor="white"
             position="bottom"
             delay={0.3}
           />
         </div>
 
-        <MatchPanel settings={settings} history={history} />
+        <MatchPanel settings={settings} history={history} isThinking={isThinking} gameStatus={gameStatus} />
       </main>
     </div>
   )

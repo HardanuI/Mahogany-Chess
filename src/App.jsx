@@ -4,7 +4,7 @@ import LandingPage from './components/LandingPage'
 import SetupModal from './components/SetupModal'
 import GameLayout from './components/GameLayout'
 
-const DEFAULT_SETTINGS = { difficulty: 'medium', time: '10', side: 'white' }
+const DEFAULT_SETTINGS = { difficulty: 'easy', time: '10', side: 'white' }
 const SCREEN_STORAGE_KEY = 'arbiter_active_screen'
 
 const pageTransition = {

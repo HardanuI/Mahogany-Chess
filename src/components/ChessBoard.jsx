@@ -3,6 +3,8 @@ import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import { TouchBackend, TouchBackendImpl } from 'react-dnd-touch-backend'
 import { CUSTOM_PIECES } from './chessPieces'
+import useStockfish from '../hooks/useStockfish'
+import { parseUciMove } from '../services/stockfishService'
 
 // Reset any stale react-dnd singleton stored on window across HMR or remounts
 const DND_INSTANCE_SYM = Symbol.for('__REACT_DND_CONTEXT_INSTANCE__')
@@ -75,14 +77,32 @@ const LAST_MOVE_STYLE = {
   backgroundColor: 'rgba(139, 107, 74, 0.34)',
 }
 
+function getGameStatus(game) {
+  if (game.isCheckmate()) {
+    return {
+      isGameOver: true,
+      outcome: game.turn() === 'w' ? 'Checkmate · Black wins' : 'Checkmate · White wins',
+    }
+  }
+  if (game.isStalemate()) {
+    return { isGameOver: true, outcome: 'Stalemate · Draw' }
+  }
+  if (game.isDraw()) {
+    return { isGameOver: true, outcome: 'Draw' }
+  }
+  return { isGameOver: false, outcome: null }
+}
+
 /**
- * Interactive chessboard powered by chess.js and react-chessboard.
- * Features custom minimalist silhouette pieces, drag-and-drop, click-to-move,
- * legal move dots, capture rings, and automatic snap-back on illegal moves.
+ * Interactive chessboard powered by chess.js, react-chessboard, and Stockfish AI.
+ * The user plays White; after each valid White move, Stockfish calculates and plays Black.
  */
 export default function ChessBoard({
   boardOrientation = 'white',
+  difficulty = 'easy',
+  skillLevel,
   onGameChange,
+  onThinkingChange,
 }) {
   const gameRef = useRef(new Chess())
   const containerRef = useRef(null)
@@ -91,11 +111,39 @@ export default function ChessBoard({
   const lastClickTimeRef = useRef(0)
   const lastDropTimeRef = useRef(0)
 
+  const isThinkingRef = useRef(false)
+  const aiRequestIdRef = useRef(0)
+  const aiTimerRef = useRef(null)
+  const isMountedRef = useRef(true)
+  const onGameChangeRef = useRef(onGameChange)
+  const onThinkingChangeRef = useRef(onThinkingChange)
+
+  onGameChangeRef.current = onGameChange
+  onThinkingChangeRef.current = onThinkingChange
+
+  const { getBestMove, stop: stopEngine } = useStockfish({ difficulty, skillLevel })
+
   const [boardWidth, setBoardWidth] = useState(552)
   const [fen, setFen] = useState(() => gameRef.current.fen())
   const [, setSelectedSquare] = useState(null)
   const [optionSquares, setOptionSquares] = useState({})
   const [lastMove, setLastMove] = useState(null)
+  const [isThinking, setIsThinking] = useState(false)
+  const [isGameOver, setIsGameOver] = useState(false)
+
+  // Track mount status & clean up pending AI timers / searches on unmount
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      if (aiTimerRef.current) {
+        clearTimeout(aiTimerRef.current)
+        aiTimerRef.current = null
+      }
+      aiRequestIdRef.current++
+      stopEngine()
+    }
+  }, [stopEngine])
 
   // Keep boardWidth responsive to container size
   useEffect(() => {
@@ -112,92 +160,201 @@ export default function ChessBoard({
     return () => observer.disconnect()
   }, [])
 
+  const setThinkingState = useCallback((value) => {
+    isThinkingRef.current = value
+    setIsThinking(value)
+    onThinkingChangeRef.current?.(value)
+  }, [])
+
   const clearHints = useCallback(() => {
     selectedSquareRef.current = null
     setSelectedSquare(null)
     setOptionSquares({})
   }, [])
 
-  /**
-   * Computes legal move hints for a given square using chess.js.
-   * Displays small dots on empty valid squares and rings on capturable enemy pieces.
-   */
-  const showLegalMoveHints = useCallback((square) => {
-    if (!square) return false
-    const game = gameRef.current
-    const piece = game.get(square)
-
-    if (!piece || piece.color !== game.turn()) {
-      selectedSquareRef.current = null
-      setSelectedSquare(null)
-      setOptionSquares({})
-      return false
-    }
-
-    const moves = game.moves({ square, verbose: true })
-    const nextSquares = {
-      [square]: SELECTED_SQUARE_STYLE,
-    }
-
-    for (const move of moves) {
-      const targetPiece = game.get(move.to)
-      const isCapture =
-        Boolean(move.captured) ||
-        Boolean(targetPiece && targetPiece.color !== piece.color)
-
-      nextSquares[move.to] = isCapture ? CAPTURE_HINT_STYLE : EMPTY_HINT_STYLE
-    }
-
-    selectedSquareRef.current = square
-    setSelectedSquare(square)
-    setOptionSquares(nextSquares)
-    return true
+  const canUserInteract = useCallback(() => {
+    return (
+      !isThinkingRef.current &&
+      !gameRef.current.isGameOver() &&
+      gameRef.current.turn() === 'w'
+    )
   }, [])
 
   /**
-   * Attempts a move on the chess.js instance.
-   * Updates FEN state if legal; returns false if illegal so the piece snaps back.
+   * Applies a move to the chess.js instance and propagates updated state.
    */
-  const tryMakeMove = useCallback(
-    (sourceSquare, targetSquare) => {
-      if (!sourceSquare || !targetSquare || sourceSquare === targetSquare) {
-        return false
-      }
-
+  const applyMove = useCallback(
+    (moveInput) => {
       const game = gameRef.current
       try {
-        const move = game.move({
-          from: sourceSquare,
-          to: targetSquare,
-          promotion: 'q',
-        })
-
-        if (!move) return false
+        const move = game.move(moveInput)
+        if (!move) return null
 
         const nextFen = game.fen()
+        const status = getGameStatus(game)
+
         setFen(nextFen)
-        setLastMove({ from: sourceSquare, to: targetSquare })
+        setLastMove({ from: move.from, to: move.to })
+        setIsGameOver(status.isGameOver)
         clearHints()
-        onGameChange?.({
+
+        onGameChangeRef.current?.({
           fen: nextFen,
           turn: game.turn(),
           history: game.history({ verbose: true }),
           inCheck: game.inCheck(),
-          isGameOver: game.isGameOver(),
+          isGameOver: status.isGameOver,
+          outcome: status.outcome,
         })
-        return true
+        return move
       } catch {
-        return false
+        return null
       }
     },
-    [clearHints, onGameChange],
+    [clearHints],
+  )
+
+  /**
+   * Requests Stockfish to calculate Black's best move and applies it after a short natural delay.
+   */
+  const triggerAiMove = useCallback(
+    (fenAfterUserMove) => {
+      if (gameRef.current.isGameOver() || gameRef.current.turn() !== 'b') {
+        return
+      }
+
+      if (aiTimerRef.current) {
+        clearTimeout(aiTimerRef.current)
+        aiTimerRef.current = null
+      }
+
+      const requestId = ++aiRequestIdRef.current
+      clearHints()
+      setThinkingState(true)
+
+      const startedAt = performance.now()
+
+      getBestMove(fenAfterUserMove)
+        .then((bestMoveUci) => {
+          if (!isMountedRef.current || requestId !== aiRequestIdRef.current) {
+            return
+          }
+
+          const targetDelay = 550 + Math.floor(Math.random() * 300)
+          const elapsed = performance.now() - startedAt
+          const remainingDelay = Math.max(0, targetDelay - elapsed)
+
+          aiTimerRef.current = setTimeout(() => {
+            aiTimerRef.current = null
+            if (!isMountedRef.current || requestId !== aiRequestIdRef.current) {
+              return
+            }
+
+            const game = gameRef.current
+            if (game.isGameOver() || game.turn() !== 'b') {
+              setThinkingState(false)
+              return
+            }
+
+            const parsed = parseUciMove(bestMoveUci)
+            let applied = parsed ? applyMove(parsed) : null
+
+            if (!applied) {
+              const fallbackMoves = game.moves({ verbose: true })
+              if (fallbackMoves.length > 0) {
+                applied = applyMove(fallbackMoves[0])
+              }
+            }
+
+            setThinkingState(false)
+          }, remainingDelay)
+        })
+        .catch((err) => {
+          if (err?.cancelled || !isMountedRef.current || requestId !== aiRequestIdRef.current) {
+            return
+          }
+          console.error('Stockfish move calculation failed:', err)
+          setThinkingState(false)
+        })
+    },
+    [applyMove, clearHints, getBestMove, setThinkingState],
+  )
+
+  /**
+   * Computes legal move hints for a given square using chess.js.
+   * Displays small dots on empty valid squares and rings on capturable enemy pieces.
+   */
+  const showLegalMoveHints = useCallback(
+    (square) => {
+      if (!square || !canUserInteract()) {
+        clearHints()
+        return false
+      }
+
+      const game = gameRef.current
+      const piece = game.get(square)
+
+      if (!piece || piece.color !== game.turn()) {
+        clearHints()
+        return false
+      }
+
+      const moves = game.moves({ square, verbose: true })
+      const nextSquares = {
+        [square]: SELECTED_SQUARE_STYLE,
+      }
+
+      for (const move of moves) {
+        const targetPiece = game.get(move.to)
+        const isCapture =
+          Boolean(move.captured) ||
+          Boolean(targetPiece && targetPiece.color !== piece.color)
+
+        nextSquares[move.to] = isCapture ? CAPTURE_HINT_STYLE : EMPTY_HINT_STYLE
+      }
+
+      selectedSquareRef.current = square
+      setSelectedSquare(square)
+      setOptionSquares(nextSquares)
+      return true
+    },
+    [canUserInteract, clearHints],
+  )
+
+  /**
+   * Attempts a user move on the chess.js instance.
+   * Triggers Stockfish AI if the game continues and it becomes Black's turn.
+   */
+  const tryMakeMove = useCallback(
+    (sourceSquare, targetSquare) => {
+      if (!canUserInteract()) return false
+      if (!sourceSquare || !targetSquare || sourceSquare === targetSquare) {
+        return false
+      }
+
+      const move = applyMove({
+        from: sourceSquare,
+        to: targetSquare,
+        promotion: 'q',
+      })
+
+      if (!move) return false
+
+      const game = gameRef.current
+      if (!game.isGameOver() && game.turn() === 'b') {
+        triggerAiMove(game.fen())
+      }
+      return true
+    },
+    [applyMove, canUserInteract, triggerAiMove],
   )
 
   const handlePieceDragBegin = useCallback(
     (_piece, sourceSquare) => {
+      if (!canUserInteract()) return
       showLegalMoveHints(sourceSquare)
     },
-    [showLegalMoveHints],
+    [canUserInteract, showLegalMoveHints],
   )
 
   const handlePieceDrop = useCallback(
@@ -218,7 +375,7 @@ export default function ChessBoard({
 
   const processSquareSelection = useCallback(
     (square) => {
-      if (!square) return
+      if (!square || !canUserInteract()) return
       const currentSelected = selectedSquareRef.current
 
       // Clicking the already-selected square deselects it
@@ -236,22 +393,24 @@ export default function ChessBoard({
       // Otherwise select the clicked square if it contains a piece of the active turn
       showLegalMoveHints(square)
     },
-    [clearHints, tryMakeMove, showLegalMoveHints],
+    [canUserInteract, clearHints, tryMakeMove, showLegalMoveHints],
   )
 
   const handleSquareClick = useCallback(
     (square) => {
+      if (!canUserInteract()) return
       const now = performance.now()
       if (now - lastClickTimeRef.current < 120) return
       lastClickTimeRef.current = now
       processSquareSelection(square)
     },
-    [processSquareSelection],
+    [canUserInteract, processSquareSelection],
   )
 
   // Direct pointer handlers ensure clicking and dragging work even if a browser blocks DnD events
   const handlePointerDown = useCallback(
     (e) => {
+      if (!canUserInteract()) return
       if (e.button !== undefined && e.button !== 0) return
       const squareEl = e.target?.closest?.('[data-square]')
       const square = squareEl?.getAttribute('data-square')
@@ -275,14 +434,14 @@ export default function ChessBoard({
         selectedOnDown,
       }
     },
-    [showLegalMoveHints],
+    [canUserInteract, showLegalMoveHints],
   )
 
   const handlePointerUp = useCallback(
     (e) => {
       const start = pointerDownRef.current
       pointerDownRef.current = null
-      if (!start) return
+      if (!start || !canUserInteract()) return
 
       const targetEl = document
         .elementFromPoint(e.clientX, e.clientY)
@@ -313,7 +472,7 @@ export default function ChessBoard({
         processSquareSelection(targetSquare)
       }
     },
-    [handlePieceDrop, processSquareSelection],
+    [canUserInteract, handlePieceDrop, processSquareSelection],
   )
 
   const customSquareStyles = useMemo(() => {
@@ -339,7 +498,7 @@ export default function ChessBoard({
         ref={containerRef}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
-        className="relative aspect-square w-full select-none"
+        className={`relative aspect-square w-full select-none ${isThinking ? 'cursor-wait' : ''}`}
       >
         <Chessboard
           id="ArbiterChessboard"
@@ -348,8 +507,13 @@ export default function ChessBoard({
           boardOrientation={boardOrientation}
           customDndBackend={UniversalDndBackend}
           customPieces={CUSTOM_PIECES}
-          arePiecesDraggable={true}
-          isDraggablePiece={({ piece }) => piece[0] === gameRef.current.turn()}
+          arePiecesDraggable={!isThinking && !isGameOver}
+          isDraggablePiece={({ piece }) =>
+            !isThinkingRef.current &&
+            !gameRef.current.isGameOver() &&
+            gameRef.current.turn() === 'w' &&
+            piece[0] === 'w'
+          }
           autoPromoteToQueen={true}
           snapToCursor={true}
           dropOffBoardAction="snapback"
