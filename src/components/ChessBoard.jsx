@@ -101,6 +101,7 @@ export default function ChessBoard({
   boardOrientation = 'white',
   difficulty = 'easy',
   skillLevel,
+  externalGameOver = false,
   onGameChange,
   onThinkingChange,
 }) {
@@ -112,12 +113,14 @@ export default function ChessBoard({
   const lastDropTimeRef = useRef(0)
 
   const isThinkingRef = useRef(false)
+  const externalGameOverRef = useRef(externalGameOver)
   const aiRequestIdRef = useRef(0)
   const aiTimerRef = useRef(null)
   const isMountedRef = useRef(true)
   const onGameChangeRef = useRef(onGameChange)
   const onThinkingChangeRef = useRef(onThinkingChange)
 
+  externalGameOverRef.current = externalGameOver
   onGameChangeRef.current = onGameChange
   onThinkingChangeRef.current = onThinkingChange
 
@@ -130,6 +133,8 @@ export default function ChessBoard({
   const [lastMove, setLastMove] = useState(null)
   const [isThinking, setIsThinking] = useState(false)
   const [isGameOver, setIsGameOver] = useState(false)
+
+  const effectiveGameOver = isGameOver || externalGameOver
 
   // Track mount status & clean up pending AI timers / searches on unmount
   useEffect(() => {
@@ -172,9 +177,23 @@ export default function ChessBoard({
     setOptionSquares({})
   }, [])
 
+  // Immediately halt any active AI search/timer if the game ends externally (e.g., timeout)
+  useEffect(() => {
+    if (!externalGameOver) return
+    if (aiTimerRef.current) {
+      clearTimeout(aiTimerRef.current)
+      aiTimerRef.current = null
+    }
+    aiRequestIdRef.current++
+    stopEngine()
+    clearHints()
+    setThinkingState(false)
+  }, [externalGameOver, clearHints, setThinkingState, stopEngine])
+
   const canUserInteract = useCallback(() => {
     return (
       !isThinkingRef.current &&
+      !externalGameOverRef.current &&
       !gameRef.current.isGameOver() &&
       gameRef.current.turn() === 'w'
     )
@@ -215,11 +234,16 @@ export default function ChessBoard({
   )
 
   /**
-   * Requests Stockfish to calculate Black's best move and applies it after a short natural delay.
+   * Requests Stockfish to calculate Black's best move and applies it after a 1.2s-2.0s delay
+   * so Black's clock visibly ticks down while thinking.
    */
   const triggerAiMove = useCallback(
     (fenAfterUserMove) => {
-      if (gameRef.current.isGameOver() || gameRef.current.turn() !== 'b') {
+      if (
+        externalGameOverRef.current ||
+        gameRef.current.isGameOver() ||
+        gameRef.current.turn() !== 'b'
+      ) {
         return
       }
 
@@ -236,17 +260,25 @@ export default function ChessBoard({
 
       getBestMove(fenAfterUserMove)
         .then((bestMoveUci) => {
-          if (!isMountedRef.current || requestId !== aiRequestIdRef.current) {
+          if (
+            !isMountedRef.current ||
+            externalGameOverRef.current ||
+            requestId !== aiRequestIdRef.current
+          ) {
             return
           }
 
-          const targetDelay = 550 + Math.floor(Math.random() * 300)
+          const targetDelay = 1200 + Math.floor(Math.random() * 800)
           const elapsed = performance.now() - startedAt
           const remainingDelay = Math.max(0, targetDelay - elapsed)
 
           aiTimerRef.current = setTimeout(() => {
             aiTimerRef.current = null
-            if (!isMountedRef.current || requestId !== aiRequestIdRef.current) {
+            if (
+              !isMountedRef.current ||
+              externalGameOverRef.current ||
+              requestId !== aiRequestIdRef.current
+            ) {
               return
             }
 
@@ -341,7 +373,7 @@ export default function ChessBoard({
       if (!move) return false
 
       const game = gameRef.current
-      if (!game.isGameOver() && game.turn() === 'b') {
+      if (!externalGameOverRef.current && !game.isGameOver() && game.turn() === 'b') {
         triggerAiMove(game.fen())
       }
       return true
@@ -507,9 +539,10 @@ export default function ChessBoard({
           boardOrientation={boardOrientation}
           customDndBackend={UniversalDndBackend}
           customPieces={CUSTOM_PIECES}
-          arePiecesDraggable={!isThinking && !isGameOver}
+          arePiecesDraggable={!isThinking && !effectiveGameOver}
           isDraggablePiece={({ piece }) =>
             !isThinkingRef.current &&
+            !externalGameOverRef.current &&
             !gameRef.current.isGameOver() &&
             gameRef.current.turn() === 'w' &&
             piece[0] === 'w'

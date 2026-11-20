@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowUpDown, RotateCcw } from 'lucide-react'
 import Logo from './ui/Logo'
@@ -7,11 +7,12 @@ import PlayerPanel from './PlayerPanel'
 import ChessBoard from './ChessBoard'
 import GameSidebar from './GameSidebar'
 import MatchPanel from './MatchPanel'
-import { DIFFICULTY_LABELS, TIME_LABELS, ease } from '../lib/motion'
+import useChessClock, { parseTimeControlSeconds } from '../hooks/useChessClock'
+import { DIFFICULTY_LABELS, ease } from '../lib/motion'
 
 /**
  * In-game layout featuring the playable ChessBoard component with
- * drag-and-drop, click-to-move, legal move hints, custom pieces, and Stockfish AI.
+ * turn-based chess clocks, Stockfish AI, and glassmorphism panels.
  */
 export default function GameLayout({
   settings,
@@ -20,20 +21,45 @@ export default function GameLayout({
   onNewGame,
 }) {
   const [boardOrientation, setBoardOrientation] = useState(initialOrientation)
-  const [turn, setTurn] = useState('w')
+  const [activeTurn, setActiveTurn] = useState('w')
   const [history, setHistory] = useState([])
   const [inCheck, setInCheck] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
   const [gameStatus, setGameStatus] = useState({ isGameOver: false, outcome: null })
 
-  const clock = TIME_LABELS[settings.time]
+  const initialSeconds = parseTimeControlSeconds(settings.time)
   const difficulty = DIFFICULTY_LABELS[settings.difficulty]
+
+  const handleTimeout = useCallback((loserColor) => {
+    setIsThinking(false)
+    setGameStatus((prev) =>
+      prev.isGameOver
+        ? prev
+        : {
+            isGameOver: true,
+            outcome: loserColor === 'w' ? 'Time out · Stockfish wins' : 'Time out · Player wins',
+          },
+    )
+  }, [])
+
+  const {
+    formattedWhiteTime,
+    formattedBlackTime,
+    isWhiteLowTime,
+    isBlackLowTime,
+    timedOutColor,
+  } = useChessClock({
+    initialSeconds,
+    activeTurn,
+    isGameOver: gameStatus.isGameOver,
+    onTimeout: handleTimeout,
+  })
 
   const toggleOrientation = () => {
     setBoardOrientation((prev) => (prev === 'white' ? 'black' : 'white'))
   }
 
-  let turnLabel = `${turn === 'w' ? 'White to move' : 'Black to move'}${inCheck ? ' · Check' : ''}`
+  let turnLabel = `${activeTurn === 'w' ? 'White to move' : 'Black to move'}${inCheck ? ' · Check' : ''}`
   if (gameStatus.isGameOver && gameStatus.outcome) {
     turnLabel = gameStatus.outcome
   } else if (isThinking) {
@@ -57,12 +83,12 @@ export default function GameLayout({
 
         <div className="glass flex items-center gap-1 rounded-full p-1.5 text-xs">
           <span className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-cream">
-            {isThinking ? (
+            {isThinking && !gameStatus.isGameOver ? (
               <span className="h-2 w-2 animate-pulse rounded-full bg-cream" />
             ) : (
               <span
                 className={`h-2 w-2 rounded-full border ${
-                  turn === 'w' ? 'border-cream bg-cream' : 'border-cream/60 bg-ink'
+                  activeTurn === 'w' ? 'border-cream bg-cream' : 'border-cream/60 bg-ink'
                 }`}
               />
             )}
@@ -98,10 +124,12 @@ export default function GameLayout({
           <PlayerPanel
             name="Stockfish AI"
             subtitle={`Level · ${difficulty}`}
-            time={clock}
+            time={formattedBlackTime}
             isAI
-            isActive={!gameStatus.isGameOver && turn === 'b'}
-            isThinking={isThinking}
+            isActive={!gameStatus.isGameOver && activeTurn === 'b'}
+            isThinking={isThinking && !gameStatus.isGameOver}
+            isLowTime={isBlackLowTime}
+            isTimedOut={timedOutColor === 'b'}
             pieceColor="black"
             position="top"
             delay={0.2}
@@ -116,6 +144,7 @@ export default function GameLayout({
             <ChessBoard
               boardOrientation={boardOrientation}
               difficulty={settings.difficulty}
+              externalGameOver={gameStatus.isGameOver}
               onThinkingChange={setIsThinking}
               onGameChange={({
                 turn: nextTurn,
@@ -124,10 +153,12 @@ export default function GameLayout({
                 isGameOver: nextGameOver,
                 outcome: nextOutcome,
               }) => {
-                setTurn(nextTurn)
+                setActiveTurn(nextTurn)
                 setHistory(nextHistory)
                 setInCheck(nextCheck)
-                setGameStatus({ isGameOver: nextGameOver, outcome: nextOutcome })
+                setGameStatus((prev) =>
+                  prev.isGameOver ? prev : { isGameOver: nextGameOver, outcome: nextOutcome },
+                )
               }}
             />
           </motion.div>
@@ -135,15 +166,22 @@ export default function GameLayout({
           <PlayerPanel
             name="Player"
             subtitle="Rating · 1500"
-            time={clock}
-            isActive={!gameStatus.isGameOver && turn === 'w'}
+            time={formattedWhiteTime}
+            isActive={!gameStatus.isGameOver && activeTurn === 'w'}
+            isLowTime={isWhiteLowTime}
+            isTimedOut={timedOutColor === 'w'}
             pieceColor="white"
             position="bottom"
             delay={0.3}
           />
         </div>
 
-        <MatchPanel settings={settings} history={history} isThinking={isThinking} gameStatus={gameStatus} />
+        <MatchPanel
+          settings={settings}
+          history={history}
+          isThinking={isThinking && !gameStatus.isGameOver}
+          gameStatus={gameStatus}
+        />
       </main>
     </div>
   )
