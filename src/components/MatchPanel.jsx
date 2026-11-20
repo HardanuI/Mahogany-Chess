@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion'
-import { AlertTriangle, BookOpen, Handshake, ScrollText } from 'lucide-react'
+import { AlertTriangle, BookOpen, ScrollText } from 'lucide-react'
 import { DIFFICULTY_LABELS, ease } from '../lib/motion'
 
 /**
- * Right-hand glass panel: match details, move list, check alerts, and evaluation bar.
+ * Compact right-hand glass panel: match metadata chips, check/match status, and Move History.
  */
 export default function MatchPanel({
   settings,
@@ -56,36 +56,36 @@ export default function MatchPanel({
     <motion.aside
       initial={{ opacity: 0, x: 24 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.9, ease, delay: 0.4 }}
-      className="glass-strong flex h-full max-h-[720px] flex-col rounded-[2rem] p-6"
+      transition={{ duration: 0.9, ease, delay: 0.35 }}
+      className="glass-strong flex h-full max-h-[min(calc(100vh_-_120px),760px)] flex-col rounded-[2rem] p-5"
     >
       <div className="flex items-start justify-between">
         <div>
           <p className="eyebrow">Match</p>
-          <h2 className="mt-2 font-serif text-[26px] leading-none">Move History</h2>
+          <h2 className="mt-2 font-serif text-2xl leading-none">Move History</h2>
         </div>
-        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/70">
-          <ScrollText size={16} strokeWidth={1.5} />
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/70">
+          <ScrollText size={15} strokeWidth={1.5} />
         </span>
       </div>
 
-      {/* Detail chips */}
-      <div className="mt-5 grid grid-cols-3 gap-2">
+      {/* Metadata chips */}
+      <div className="mt-4 grid grid-cols-3 gap-2">
         {[
           ['Level', DIFFICULTY_LABELS[settings.difficulty]],
           ['Clock', timeLabel],
           ['Side', settings.side === 'black' ? 'Black' : 'White'],
         ].map(([k, v]) => (
-          <div key={k} className="rounded-[1.25rem] bg-white/50 px-3 py-2.5">
+          <div key={k} className="rounded-[1.15rem] bg-white/50 px-2.5 py-2">
             <p className="text-[9px] uppercase tracking-[0.2em] text-ink/45">{k}</p>
-            <p className="mt-1 text-[13px] font-medium">{v}</p>
+            <p className="mt-0.5 text-xs font-medium">{v}</p>
           </div>
         ))}
       </div>
 
       {/* Status */}
       <div
-        className={`mt-3 flex items-center gap-3 rounded-full px-4 py-2.5 transition-colors duration-300 ${
+        className={`mt-3 flex items-center gap-2.5 rounded-full px-3.5 py-2 transition-colors duration-300 ${
           isInCheck ? 'border border-red-500/30 bg-red-500/15' : 'bg-white/40'
         }`}
       >
@@ -96,7 +96,7 @@ export default function MatchPanel({
         )}
         <span className="text-xs text-ink/60">Status</span>
         <span
-          className={`ml-auto text-xs ${
+          className={`ml-auto truncate text-xs ${
             isInCheck
               ? 'font-semibold text-red-700'
               : gameStatus.isGameOver
@@ -109,8 +109,8 @@ export default function MatchPanel({
       </div>
 
       {/* Move list */}
-      <div className="mt-5 flex min-h-0 flex-1 flex-col">
-        <div className="grid grid-cols-[2rem_1fr_1fr] px-3 pb-2 text-[10px] uppercase tracking-[0.2em] text-ink/40">
+      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+        <div className="grid grid-cols-[1.75rem_1fr_1fr] px-3 pb-2 text-[10px] uppercase tracking-[0.2em] text-ink/40">
           <span>#</span>
           <span>White</span>
           <span>Black</span>
@@ -121,7 +121,7 @@ export default function MatchPanel({
             {moveRows.map((row, i) => (
               <div
                 key={row.number}
-                className={`grid grid-cols-[2rem_1fr_1fr] items-center rounded-full px-3 py-2 text-xs font-medium ${
+                className={`grid grid-cols-[1.75rem_1fr_1fr] items-center rounded-full px-3 py-2 text-xs font-medium ${
                   i % 2 === 0 ? 'bg-white/45' : ''
                 }`}
               >
@@ -136,42 +136,21 @@ export default function MatchPanel({
             {Array.from({ length: 7 }).map((_, i) => (
               <div
                 key={i}
-                className={`grid grid-cols-[2rem_1fr_1fr] items-center rounded-full px-3 py-2.5 text-sm ${
+                className={`grid grid-cols-[1.75rem_1fr_1fr] items-center rounded-full px-3 py-2.5 text-sm ${
                   i % 2 === 0 ? 'bg-white/35' : ''
                 }`}
                 style={{ opacity: 1 - i * 0.12 }}
               >
                 <span className="text-xs tabular-nums text-ink/35">{i + 1}.</span>
-                <span className="h-1.5 w-10 rounded-full bg-ink/10" />
-                <span className="h-1.5 w-10 rounded-full bg-ink/10" />
+                <span className="h-1.5 w-9 rounded-full bg-ink/10" />
+                <span className="h-1.5 w-9 rounded-full bg-ink/10" />
               </div>
             ))}
           </div>
         )}
 
-        <p className="pt-3 text-center font-serif text-sm italic text-ink/45">{helperText}</p>
+        <p className="pt-3 text-center font-serif text-xs italic text-ink/45">{helperText}</p>
       </div>
-
-      {/* Static evaluation bar */}
-      <div className="mt-5 border-t border-ink/10 pt-5">
-        <div className="flex items-center justify-between text-[11px] text-ink/55">
-          <span>Evaluation</span>
-          <span className="tabular-nums text-ink">0.0</span>
-        </div>
-        <div className="mt-2.5 flex h-2 overflow-hidden rounded-full bg-ink">
-          <div className="h-full w-1/2 rounded-full bg-cream-50" />
-        </div>
-      </div>
-
-      <motion.button
-        type="button"
-        whileHover={{ y: -2 }}
-        whileTap={{ scale: 0.98 }}
-        className="mt-5 flex items-center justify-center gap-2 rounded-full border border-white/80 bg-white/60 py-3.5 text-sm text-ink/80 transition-colors hover:bg-white"
-      >
-        <Handshake size={16} strokeWidth={1.5} />
-        Offer Draw
-      </motion.button>
     </motion.aside>
   )
 }

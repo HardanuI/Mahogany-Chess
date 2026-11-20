@@ -1,20 +1,19 @@
 import { useCallback, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowUpDown, RotateCcw } from 'lucide-react'
+import { ArrowLeft, ArrowUpDown, Flag, RotateCcw } from 'lucide-react'
 import Logo from './ui/Logo'
 import PillButton from './ui/PillButton'
 import PlayerPanel from './PlayerPanel'
 import ChessBoard from './ChessBoard'
-import GameSidebar from './GameSidebar'
 import MatchPanel from './MatchPanel'
 import GameOverModal from './GameOverModal'
 import useChessClock, { parseTimeControlSeconds } from '../hooks/useChessClock'
-import { createTimeoutGameOver } from '../lib/gameOver'
+import { createResignGameOver, createTimeoutGameOver } from '../lib/gameOver'
 import { DIFFICULTY_LABELS, ease } from '../lib/motion'
 
 /**
- * In-game layout connecting SetupModal settings (difficulty, time control, player color)
- * to Stockfish AI, turn-based chess clocks, check notifications, and board orientation.
+ * Streamlined, gameplay-first layout centering an enlarged square chessboard
+ * between synchronized PlayerPanels alongside a compact Move History drawer.
  */
 export default function GameLayout({
   settings,
@@ -54,6 +53,11 @@ export default function GameLayout({
     },
     [playerColor],
   )
+
+  const handleResign = useCallback(() => {
+    setIsThinking(false)
+    setGameStatus((prev) => (prev.isGameOver ? prev : createResignGameOver(playerColor)))
+  }, [playerColor])
 
   const {
     formattedWhiteTime,
@@ -103,11 +107,22 @@ export default function GameLayout({
         initial={{ opacity: 0, y: -16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, ease }}
-        className="relative z-10 mx-auto flex max-w-[1440px] items-center justify-between px-10 pt-7"
+        className="relative z-10 mx-auto flex max-w-[1260px] flex-wrap items-center justify-between gap-4 px-6 pt-5 lg:px-10"
       >
-        <button type="button" onClick={onExit} aria-label="Back to home">
-          <Logo />
-        </button>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={onExit} aria-label="Back to home">
+            <Logo />
+          </button>
+          <span className="h-5 w-px bg-ink/15" />
+          <button
+            type="button"
+            onClick={onExit}
+            className="glass flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium text-ink/75 transition-colors hover:bg-white/75 hover:text-ink"
+          >
+            <ArrowLeft size={14} strokeWidth={1.5} />
+            Back to Menu
+          </button>
+        </div>
 
         <div className="glass flex items-center gap-1 rounded-full p-1.5 text-xs">
           <span
@@ -145,7 +160,17 @@ export default function GameLayout({
           </button>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          {!gameStatus.isGameOver && (
+            <button
+              type="button"
+              onClick={handleResign}
+              className="glass flex items-center gap-1.5 rounded-full px-4 py-2.5 text-xs font-medium text-ink/75 transition-colors hover:border-umber/40 hover:bg-umber/10 hover:text-umber-dark"
+            >
+              <Flag size={14} strokeWidth={1.5} />
+              Resign
+            </button>
+          )}
           {gameStatus.isGameOver && isModalDismissed && (
             <button
               type="button"
@@ -161,11 +186,9 @@ export default function GameLayout({
         </div>
       </motion.header>
 
-      {/* Main stage */}
-      <main className="relative z-10 mx-auto grid max-w-[1440px] grid-cols-[88px_1fr_340px] items-center gap-10 px-10 py-7">
-        <GameSidebar onExit={onExit} />
-
-        <div className="mx-auto flex w-[min(58vh,600px)] min-w-[440px] flex-col gap-4">
+      {/* Main stage: Board focal point + streamlined Move History drawer */}
+      <main className="relative z-10 mx-auto grid max-w-[1260px] grid-cols-1 items-center gap-7 px-6 py-4 lg:grid-cols-[minmax(0,1fr)_272px] lg:gap-8 lg:px-10">
+        <div className="mx-auto flex w-[min(calc(100vh_-_240px),760px,100%)] min-w-[300px] flex-col gap-3">
           <PlayerPanel
             name="Stockfish AI"
             subtitle={`Level · ${difficulty}`}
@@ -222,7 +245,7 @@ export default function GameLayout({
 
           <PlayerPanel
             name="Player"
-            subtitle="Rating · 1500"
+            subtitle={playerSide === 'white' ? 'White pieces' : 'Black pieces'}
             time={playerTime}
             hideTimer={isUnlimited}
             isActive={!gameStatus.isGameOver && activeTurn === playerColor}

@@ -87,3 +87,17 @@ export function createTimeoutGameOver(loserColor, playerColor = 'w') {
     outcome: result === 'loss' ? 'Time out · Stockfish wins' : 'Time out · Player wins',
   }
 }
+
+/**
+ * Builds structured terminal match metadata when the human player resigns.
+ *
+ * @param {'w' | 'b'} [playerColor='w']
+ */
+export function createResignGameOver(playerColor = 'w') {
+  return {
+    isGameOver: true,
+    result: 'loss',
+    reason: 'By Resignation',
+    outcome: playerColor === 'w' ? 'Resigned · Black wins' : 'Resigned · White wins',
+  }
+}

@@ -30,7 +30,7 @@ export default function PlayerPanel({
     timerPillClass = 'bg-ink text-cream shadow-ink'
   }
 
-  let statusText = 'No captures yet'
+  let statusText = null
   if (isTimedOut) {
     statusText = 'Out of time'
   } else if (isAI && isThinking) {
@@ -42,16 +42,16 @@ export default function PlayerPanel({
       initial={{ opacity: 0, y: position === 'top' ? -18 : 18 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, ease, delay }}
-      className={`glass flex w-full items-center justify-between rounded-[2rem] p-2.5 pr-3 transition-shadow ${
+      className={`glass flex w-full items-center justify-between rounded-[1.75rem] p-2 pr-2.5 transition-shadow ${
         isActive ? 'ring-1 ring-white/90' : ''
       }`}
     >
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3.5">
         <Avatar isAI={isAI} isActive={isActive} isThinking={isThinking && !isTimedOut} />
 
         <div>
           <div className="flex items-center gap-2">
-            <p className="font-serif text-lg leading-none">{name}</p>
+            <p className="font-serif text-base leading-none">{name}</p>
             {isAI && (
               <span className="rounded-full bg-olive/15 px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.18em] text-olive-dark">
                 Engine
@@ -75,7 +75,7 @@ export default function PlayerPanel({
               )
             )}
           </div>
-          <p className="mt-1.5 flex items-center gap-2 text-xs text-ink/55">
+          <p className="mt-1 flex items-center gap-2 text-xs text-ink/55">
             <span
               className={`h-2.5 w-2.5 rounded-full border ${
                 pieceColor === 'white' ? 'border-ink/30 bg-cream' : 'border-ink bg-ink'
@@ -86,18 +86,20 @@ export default function PlayerPanel({
         </div>
       </div>
 
-      <div className="flex items-center gap-5">
-        <span
-          className={`text-[11px] italic ${
-            isTimedOut ? 'font-medium text-red-600' : 'text-ink/35'
-          }`}
-        >
-          {statusText}
-        </span>
+      <div className="flex items-center gap-4">
+        {statusText && (
+          <span
+            className={`text-[11px] italic ${
+              isTimedOut ? 'font-medium text-red-600' : 'text-ink/40'
+            }`}
+          >
+            {statusText}
+          </span>
+        )}
 
         {!hideTimer && (
           <div
-            className={`flex items-center gap-2.5 rounded-full px-5 py-3 transition-colors duration-500 ${timerPillClass}`}
+            className={`flex items-center gap-2 rounded-full px-4 py-2 transition-colors duration-500 ${timerPillClass}`}
           >
             {isActive && !isTimedOut ? (
               <span className="relative flex h-2 w-2">
@@ -113,9 +115,9 @@ export default function PlayerPanel({
                 />
               </span>
             ) : (
-              <Timer size={15} strokeWidth={1.5} />
+              <Timer size={14} strokeWidth={1.5} />
             )}
-            <span className="min-w-[3.5rem] text-center text-xl font-medium tabular-nums tracking-tight">
+            <span className="min-w-[3.25rem] text-center text-lg font-medium tabular-nums tracking-tight">
               {time}
             </span>
           </div>
@@ -139,11 +141,11 @@ function Avatar({ isAI, isActive, isThinking }) {
         />
       )}
       {isAI ? (
-        <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-ink text-cream">
-          <Cpu size={19} strokeWidth={1.5} />
+        <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-ink text-cream">
+          <Cpu size={17} strokeWidth={1.5} />
         </span>
       ) : (
-        <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-umber-light to-olive font-serif text-lg text-cream">
+        <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-umber-light to-olive font-serif text-base text-cream">
           P
         </span>
       )}
